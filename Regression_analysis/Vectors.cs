@@ -221,28 +221,71 @@ class Vectors {
         return result;
     }
 
-    public Vectors Inv(int maxIterations = 100, double tolerance = 1e-10) {
-        if (this.Shape.Item1 == this.Shape.Item2)
+    public static Vectors Inv(Vectors A) {
+        if (A.Shape.Item1 == A.Shape.Item2)
         {
-            Vectors identity = Vectors.Eig(this.Shape);
-            Vectors inverse = Vectors.Eig(this.Shape); // Начальное приближение (единичная матрица)
+            Vectors L = Vectors.InitVectors(A.Shape);
+            Vectors U = Vectors.InitVectors(A.Shape);
 
-            // Инициализация начального приближения
-            Vectors currentApproximation = Vectors.Eig(this.Shape);
-
-            for (int k = 0; k < maxIterations; k++)
+            // LU-разложение
+            for (int i = 0; i < A.Shape.Item1; i++)
             {
-                // Вычисляем произведение текущего приближения и (2I - A * текущий приближенец)
-                var product = this.Dot(currentApproximation);
-                var nextApproximation = Vectors.Sub(identity, product);
-                nextApproximation = currentApproximation.Dot(nextApproximation);
-                // Проверка на сходимость
-                if (Vectors.Max(Vectors.Sub(currentApproximation, nextApproximation)) < tolerance)
-                    return nextApproximation;
-                currentApproximation = nextApproximation;
+                for (int j = i; j < A.Shape.Item2; j++)
+                {
+                    U.values[i][j] = A.values[i][j];
+                    for (int k = 0; k < i; k++)
+                    {
+                        U.values[i][j] -= L.values[i][k] * U.values[k][j];
+                    }
+                }
+
+                for (int j = i; j < A.Shape.Item1; j++)
+                {
+                    if (i == j)
+                    {
+                        L.values[i][i] = 1; // диагональные элементы равны 1
+                    }
+                    else
+                    {
+                        L.values[j][i] = A.values[j][i];
+                        for (int k = 0; k < i; k++)
+                        {
+                            L.values[j][i] -= L.values[j][k] * U.values[k][i];
+                        }
+                        L.values[j][i] /= U.values[i][i];
+                    }
+                }
             }
 
-            throw new InvalidOperationException("Could not find the inverse matrix in the given number of iterations.");
+            // Теперь решим систему уравнений для получения обратной матрицы
+            Vectors A_inv = Vectors.InitVectors(A.Shape);
+
+            for (int i = 0; i < A.Shape.Item1; i++)
+            {
+                // Решаем Ly = e_i для y
+                double[] y = new double[A.Shape.Item1];
+                y[i] = 1;
+                for (int j = 0; j < A.Shape.Item2; j++)
+                {
+                    for (int k = 0; k < j; k++)
+                    {
+                        y[j] -= L.values[j][k] * y[k];
+                    }
+                }
+
+                // Теперь решаем Ux = y для x
+                for (int j = A.Shape.Item2 - 1; j >= 0; j--)
+                {
+                    A_inv.values[j][i] = y[j];
+                    for (int k = j + 1; k < A.Shape.Item1; k++)
+                    {
+                        A_inv.values[j][i] -= U.values[j][k] * A_inv.values[k][i];
+                    }
+                    A_inv.values[j][i] /= U.values[j][j];
+                }
+            }
+
+            return A_inv;
         }
         else throw new Exception("The Vector in not square. Cannon be reversed.");
     }
@@ -273,8 +316,8 @@ class TestClass
 {
     static void Main(string[] args)
     {
-        Vectors vector1 = new Vectors( [ [1, 2, 3], [2, 3, 4], [3, 4, 8] ] );
-        vector1 = vector1.Inv();
+        Vectors vector1 = new Vectors( [ [1, 2, 3], [2, 3, 4], [3, 4, 7] ] );
+        vector1 = Vectors.Inv(vector1);
         Console.WriteLine(vector1);
     }
 }
