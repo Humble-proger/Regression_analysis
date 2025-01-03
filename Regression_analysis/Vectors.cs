@@ -1,20 +1,27 @@
-﻿
-using System.Numerics;
-using System.Runtime.CompilerServices;
+﻿using Regression_analysis;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
 
-class Vectors {
+class Vectors
+{
     public (int, int) Shape;
     public int Size { get => Shape.Item1 * Shape.Item2; }
-    private double[][] values;
-    
-    public Vectors(double[][] values)
-    {
-        this.values = values;
-        this.Shape = (values.Length, values[0].Length);
+    private readonly double[][] values;
+    private bool transposes = false;
+
+    public Vectors(double[][] value) {
+        this.values = value;
+        this.Shape = (value.Length, value[0].Length);
     }
-    private static Vectors InitVectors((int, int) shape) {
+    public Vectors(double[] value) {
+        this.values = [value];
+        this.Shape = (1, value.Length);
+    } 
+
+    public static Vectors InitVectors((int, int) shape) {
         double[][] result = new double[shape.Item1][];
-        for (int i = 0; i < shape.Item2; i++)
+        for (int i = 0; i < shape.Item1; i++)
             result[i] = new double[shape.Item2];
         return new Vectors(result);
     }
@@ -38,104 +45,121 @@ class Vectors {
         }
         return new Vectors(temp_val);
     }
-    public static Vectors Eig((int, int) shape)
+    public static Vectors Eig((int, int) shape, double value = 1.0)
     {
-        Vectors result = Vectors.Zeros(shape);
-        if (shape.Item1 >= shape.Item2)
-            for (int i = 0; i < shape.Item2; i++)
-                result.values[i][i] = 1.0;
-        else
-            for (int i = 0; i < shape.Item1; i++)
-                result.values[i][i] = 1.0;
-        return result;
+        double[][] result = new double[shape.Item1][];
+        for (int i = 0; i < shape.Item1; i++) {
+            result[i] = new double [shape.Item2];
+            for (int j = 0; j < i; j++)
+                result[i][j] = 0.0;
+            result[i][i] = value;
+            for (int k = i + 1; k < shape.Item2; k++)
+                result[i][k] = 0.0;
+        }
+        return new Vectors(result);
     }
 
     public Vectors Copy() {
-        Vectors result = Vectors.InitVectors(this.Shape);
+        double[][] result = new double[this.Shape.Item1][];
         for (int i = 0; i < this.Shape.Item1; i++)
+        {
+            result[i] = new double[this.Shape.Item2];
             for (int j = 0; j < this.Shape.Item2; j++)
-                result.values[i][j] = this.values[i][j];
-        return result;
+                result[i][j] = this[i, j];
+        }
+        return new Vectors(result);
     }
 
-    public void T() {
-        double[][] new_values = new double[this.Shape.Item2][];
-        for (int j = 0; j < this.Shape.Item2; j++)
-        {
-            new_values[j] = new double[this.Shape.Item1];
-            new_values[j][0] = this.values[0][j];
-        }
-        for (int i = 1; i < this.Shape.Item1; i++) {
-            for (int j = 0; j < this.Shape.Item2; j++) {
-                new_values[j][i] = this.values[i][j];                
-            }
-        }
-        this.values = new_values;
-        (this.Shape.Item1, this.Shape.Item2) = (this.Shape.Item2, this.Shape.Item1);
+    public Vectors T() {
+        Vectors result = this.Copy();
+        result.transposes = !result.transposes;
+        (result.Shape.Item1, result.Shape.Item2) = (result.Shape.Item2, result.Shape.Item1);
+        return result;
     }
     public static Vectors Multipty(Vectors vec, double val) {
         if (double.Abs(val) < double.Epsilon) return Vectors.Zeros(vec.Shape);
         else {
-            Vectors result = Vectors.InitVectors(vec.Shape);
+            double[][] result = new double[vec.Shape.Item1][];
             for (int i = 0; i < vec.Shape.Item1; i++)
+            {
+                result[i] = new double[vec.Shape.Item2];
                 for (int j = 0; j < vec.Shape.Item2; j++)
-                    result.values[i][j] = vec.values[i][j] * val;
-            return result;
+                    result[i][j] = vec[i, j] * val;
+            }
+            return new Vectors(result);
         }
     }
     public static Vectors Multipty(Vectors vec, Vectors val)
     {
         if (vec.Shape == val.Shape)
         {
-            Vectors result = Vectors.InitVectors(vec.Shape);
+            double[][] result = new double[vec.Shape.Item1][];
             for (int i = 0; i < vec.Shape.Item1; i++)
+            {
+                result[i] = new double[vec.Shape.Item2];
                 for (int j = 0; j < vec.Shape.Item2; j++)
-                    result.values[i][j] = vec.values[i][j] * val.values[i][j];
-            return result;
+                    result[i][j] = vec[i, j] * val[i, j];
+            }
+            return new Vectors(result);
         }
         else throw new Exception($"The shapes of the vectors do not match. The shape of the first vector is {vec.Shape}. The shape of the second vector is {val.Shape}.");
     }
     public static Vectors Add(Vectors vec, double val)
     {
-        Vectors result = vec.Copy();
         if (double.Abs(val) >= double.Epsilon)
         {
+            double[][] result = new double[vec.Shape.Item1][];
             for (int i = 0; i < vec.Shape.Item1; i++)
+            {
+                result[i] = new double[vec.Shape.Item2];
                 for (int j = 0; j < vec.Shape.Item2; j++)
-                    result.values[i][j] += val;
+                    result[i][j] = vec[i, j] + val;
+            }
+            return new Vectors(result);
         }
-        return result;
+        return vec;
     }
     public static Vectors Add(Vectors vec, Vectors val)
     {
         if (vec.Shape == val.Shape)
         {
-            Vectors result = Vectors.InitVectors(vec.Shape);
+            double[][] result = new double[vec.Shape.Item1][];
             for (int i = 0; i < vec.Shape.Item1; i++)
+            {
+                result[i] = new double[vec.Shape.Item2];
                 for (int j = 0; j < vec.Shape.Item2; j++)
-                    result.values[i][j] = vec.values[i][j] + val.values[i][j];
-            return result;
+                    result[i][j] = vec[i, j] + val[i, j];
+            }
+            return new Vectors(result);
         }
         else throw new Exception($"The shapes of the vectors do not match. The shape of the first vector is {vec.Shape}. The shape of the second vector is {val.Shape}.");
     }
     public static Vectors Sub(Vectors vec, double val) {
-        Vectors result = vec.Copy();
-        if (double.Abs(val) >= double.Epsilon) {
+        if (double.Abs(val) >= double.Epsilon)
+        {
+            double[][] result = new double[vec.Shape.Item1][];
             for (int i = 0; i < vec.Shape.Item1; i++)
+            {
+                result[i] = new double[vec.Shape.Item2];
                 for (int j = 0; j < vec.Shape.Item2; j++)
-                    result.values[i][j] -= val;
+                    result[i][j] = vec[i, j] - val;
+            }
+            return new Vectors(result);
         }
-        return result;
+        return vec;
     }
     public static Vectors Sub(Vectors vec, Vectors val)
     {
         if (vec.Shape == val.Shape)
         {
-            Vectors result = Vectors.InitVectors(vec.Shape);
+            double[][] result = new double[vec.Shape.Item1][];
             for (int i = 0; i < vec.Shape.Item1; i++)
+            {
+                result[i] = new double[vec.Shape.Item2];
                 for (int j = 0; j < vec.Shape.Item2; j++)
-                    result.values[i][j] = vec.values[i][j] - val.values[i][j];
-            return result;
+                    result[i][j] = vec[i, j] - val[i, j];
+            }
+            return new Vectors(result);
         }
         else throw new Exception($"The shapes of the vectors do not match. The shape of the first vector is {vec.Shape}. The shape of the second vector is {val.Shape}.");
     }
@@ -143,11 +167,14 @@ class Vectors {
     {
         if (double.Abs(val) >= double.Epsilon)
         {
-            Vectors result = vec.Copy();
+            double[][] result = new double[vec.Shape.Item1][];
             for (int i = 0; i < vec.Shape.Item1; i++)
+            {
+                result[i] = new double[vec.Shape.Item2];
                 for (int j = 0; j < vec.Shape.Item2; j++)
-                    result.values[i][j] = vec.values[i][j] / val;
-            return result;
+                    result[i][j] = vec[i, j] / val;
+            }
+            return new Vectors(result);
         }
         else throw new Exception("Divade by Zero");
     }
@@ -155,46 +182,52 @@ class Vectors {
     {
         if (vec.Shape == val.Shape)
         {
-            var result = Vectors.InitVectors(vec.Shape);
+            double[][] result = new double[vec.Shape.Item1][];
             for (int i = 0; i < vec.Shape.Item1; i++)
-                for (int j = 0; j < vec.Shape.Item2; j++) {
-                    if (double.Abs(val.values[i][j]) < double.Epsilon) throw new Exception("Divade by Zero");
-                    result.values[i][j] = vec.values[i][j] / val.values[i][j];
+            {
+                result[i] = new double [vec.Shape.Item2];
+                for (int j = 0; j < vec.Shape.Item2; j++)
+                {
+                    if (double.Abs(val[i, j]) < double.Epsilon) throw new Exception("Divade by Zero");
+                    result[i][j] = vec[i, j] / val[i, j];
                 }
-            return result;
+            }
+            return new Vectors(result);
         }
         else throw new Exception($"The shapes of the vectors do not match. The shape of the first vector is {vec.Shape}. The shape of the second vector is {val.Shape}.");
     }
     public Vectors Dot(Vectors vec) {
         if (this.Shape.Item2 == vec.Shape.Item1)
         {
-            Vectors result_vec = Vectors.Zeros((this.Shape.Item1, vec.Shape.Item2));
-            double sumator = 0.0;
+            double[][] result = new double[this.Shape.Item1][];
             for (int i = 0; i < this.Shape.Item1; i++)
+            {
+                result[i] = new double[vec.Shape.Item2];
                 for (int j = 0; j < vec.Shape.Item2; j++)
                 {
-                    sumator = 0;
+                    result[i][j] = 0.0;
                     for (int k = 0; k < this.Shape.Item2; k++)
-                        sumator += this.values[i][k] * vec.values[k][j];
-                    result_vec.values[i][j] = sumator;
+                        result[i][j] += this[i, k] * vec[k, j];
                 }
-            return result_vec;
+            }
+            return new Vectors(result);
         }
         else throw new Exception($"Vector multiplication requires the shape to be (n, m) -> (m, k). Currently it is {this.Shape} -> {vec.Shape}.");
     }
     public Vectors Square() {
         if (this.Shape.Item1 == this.Shape.Item2) {
-            Vectors result_vec = Vectors.Zeros(this.Shape);
-            double sumator = 0.0;
+            double[][] result = new double[this.Shape.Item1][];
             for (int i = 0; i < this.Shape.Item1; i++)
+            {
+                result[i] = new double[this.Shape.Item2];
                 for (int j = 0; j < this.Shape.Item2; j++)
                 {
-                    sumator = 0;
+                    result[i][j] = 0;
                     for (int k = 0; k < this.Shape.Item2; k++)
-                        sumator += this.values[i][k] * this.values[k][j];
-                    result_vec.values[i][j] = sumator;
+                        result[i][j] += this[i, k] * this[k, j];
                 }
-            return result_vec;
+            }
+            return new Vectors(result);
         }
         else throw new Exception($"Vector multiplication requires the shape to be (n, m) -> (m, k). Currently it is {this.Shape} -> {this.Shape}.");
     }
@@ -202,7 +235,7 @@ class Vectors {
         double result = 0;
         for (int i = 0; i < vec.Shape.Item1; i++)
             for (int j = 0; j < vec.Shape.Item2; j++) {
-                var tmp = double.Abs(vec.values[i][j]);
+                var tmp = double.Abs(vec[i, j]);
                 if (tmp > result)
                     result = tmp;
             }
@@ -214,11 +247,46 @@ class Vectors {
         for (int i = 0; i < vec.Shape.Item1; i++)
             for (int j = 0; j < vec.Shape.Item2; j++)
             {
-                var tmp = double.Abs(vec.values[i][j]);
+                var tmp = double.Abs(vec[i, j]);
                 if (tmp < result)
                     result = tmp;
             }
         return result;
+    }
+    public static Vectors Inv_Schulz(Vectors A, int max_iter = 100) {
+        if (A.Shape.Item1 != A.Shape.Item2)
+            throw new Exception("The Vector in not square. Cannon be reversed.");
+        var A_T = A.T();
+        var A_inv = Vectors.Divade(A_T, Vectors.Norm(A.Dot(A_T)));
+        var E_2 = Vectors.Eig(A.Shape, 2.0);
+        for (int i = 0; i < max_iter; i++) {
+            A_inv = A_inv.Dot(Vectors.Sub(E_2, A.Dot(A_inv)));
+        }
+        return A_inv;
+    }
+    public static double Norm(Vectors vec) {
+        double summator = 0;
+        for (int i = 0; i < vec.Shape.Item1; i++)
+            for (int j = 0; j < vec.Shape.Item2; j++)
+                summator += vec[i, j] * vec[i, j];
+        return Math.Sqrt(summator);
+    }
+
+    public static double Power_Iteration(Vectors A, double tol = 1e-1, int max_iter = 1000) {
+        var tmp = new Random_distribution();
+        Vectors b_k = tmp.Uniform(0, 1, (1, A.Shape.Item1)).T();
+        double eigenvalue_old = 0.0, eigenvalue_new = 0.0;
+        Vectors bk_1, bk_T;
+        for (int i = 0; i < max_iter; i++) {
+            bk_1 = A.Dot(b_k);
+            b_k = Vectors.Divade(bk_1, Vectors.Norm(bk_1));
+            bk_T = b_k.T();
+            eigenvalue_new = bk_T.Dot(A.Dot(b_k))[0, 0] / bk_T.Dot(b_k)[0, 0];
+            if (double.Abs(eigenvalue_new - eigenvalue_old) < tol) break;
+            eigenvalue_old = eigenvalue_new;
+        }
+        return eigenvalue_new;
+
     }
 
     public static Vectors Inv(Vectors A) {
@@ -226,7 +294,6 @@ class Vectors {
         {
             Vectors L = Vectors.InitVectors(A.Shape);
             Vectors U = Vectors.InitVectors(A.Shape);
-
             // LU-разложение
             for (int i = 0; i < A.Shape.Item1; i++)
             {
@@ -238,7 +305,6 @@ class Vectors {
                         U.values[i][j] -= L.values[i][k] * U.values[k][j];
                     }
                 }
-
                 for (int j = i; j < A.Shape.Item1; j++)
                 {
                     if (i == j)
@@ -289,110 +355,100 @@ class Vectors {
         }
         else throw new Exception("The Vector in not square. Cannon be reversed.");
     }
-    private static double MaxDifference(double[,] a, double[,] b)
-    {
-        double maxDiff = 0.0;
-        int rows = a.GetLength(0);
-        int cols = a.GetLength(1);
-
-        for (int i = 0; i < rows; i++)
+    public bool IsVector() {
+        if (Shape.Item1 == 1 || Shape.Item2 == 1) return true;
+        else return false;
+    }
+    
+    public override string? ToString() {
+        if (this.Size > 0)
         {
-            for (int j = 0; j < cols; j++)
+            StringBuilder sb = new();
+            for (int i = 0; i < this.Shape.Item1; i++)
             {
-                double diff = Math.Abs(a[i, j] - b[i, j]);
-                if (diff > maxDiff)
+                sb.Append($"[ {this[i, 0].ToString("E2")}");
+                for (int j = 1; j < this.Shape.Item2; j++)
                 {
-                    maxDiff = diff;
+                    sb.Append($" {this[i, j].ToString("E2")}");
                 }
+                sb.Append(" ]\n");
             }
+            return sb.ToString();
         }
-
-        return maxDiff;
+        else return "Empty";
     }
-}
-
-
-class TestClass
-{
-    static void Main(string[] args)
-    {
-        Vectors vector1 = new Vectors( [ [1, 2, 3], [2, 3, 4], [3, 4, 7] ] );
-        vector1 = Vectors.Inv(vector1);
-        Console.WriteLine(vector1);
-    }
-}
-
-
-
-
-/*
-private static double[,] CreateIdentityMatrix(int size)
-{
-    double[,] identity = new double[size, size];
-    for (int i = 0; i < size; i++)
-    {
-        identity[i, i] = 1.0;
-    }
-    return identity;
-}
-
-private static double[,] Multiply(double[,] a, double[,] b)
-{
-    int aRows = a.GetLength(0);
-    int aCols = a.GetLength(1);
-    int bCols = b.GetLength(1);
-    double[,] result = new double[aRows, bCols];
-
-    for (int i = 0; i < aRows; i++)
-    {
-        for (int j = 0; j < bCols; j++)
-        {
-            result[i, j] = 0;
-            for (int k = 0; k < aCols; k++)
-            {
-                result[i, j] += a[i, k] * b[k, j];
-            }
+    public double this[int i, int j] {
+        get {
+            int tmp = i, tmp_2 = j;
+            if (i < 0)
+                tmp += this.Shape.Item1;
+            if (j < 0)
+                tmp_2 += this.Shape.Item2;
+            if (transposes)
+                return values[tmp_2][tmp];
+            else
+                return values[tmp][tmp_2];
+        }
+        set {
+            int tmp = i, tmp_2 = j;
+            if (i < 0)
+                tmp += this.Shape.Item1;
+            if (j < 0)
+                tmp_2 += this.Shape.Item2;
+            if (transposes)
+                values[tmp_2][tmp] = value;
+            else
+                values[tmp][tmp_2] = value;
         }
     }
-
-    return result;
-}
-
-private static double[,] Subtract(double[,] a, double[,] b)
-{
-    int rows = a.GetLength(0);
-    int cols = a.GetLength(1);
-    double[,] result = new double[rows, cols];
-
-    for (int i = 0; i < rows; i++)
-    {
-        for (int j = 0; j < cols; j++)
-        {
-            result[i, j] = a[i, j] - b[i, j];
+    public double this[int i] {
+        get {
+            int tmp = i;
+            if (i < 0)
+                tmp += this.Shape.Item1;
+            if (transposes)
+                if (Shape.Item1 == 1)
+                    return values[tmp][0];
+                else
+                    return values[0][tmp];
+            else
+                if (Shape.Item1 == 1)
+                    return values[0][tmp];
+                else
+                    return values[tmp][0];
+        }
+        set {
+            int tmp = i;
+            if (i < 0)
+                tmp += this.Shape.Item1;
+            if (transposes)
+                if (Shape.Item1 == 1)
+                    values[tmp][0] = value;
+                else
+                    values[0][tmp] = value;
+            else
+                if (Shape.Item1 == 1)
+                    values[0][tmp] = value;
+                else
+                    values[tmp][0] = value;
         }
     }
-
-    return result;
+    
+    public static Vectors operator +(Vectors s1, Vectors s2) => Add(s1, s2);
+    public static Vectors operator +(Vectors s1, double s2) => Add(s1, s2);
+    public static Vectors operator +(double s1, Vectors s2) => Add(s2, s1);
+    public static Vectors operator -(Vectors s1, Vectors s2) => Sub(s1, s2);
+    public static Vectors operator -(Vectors s1, double s2) => Sub(s1, s2);
+    public static Vectors operator -(double s1, Vectors s2) => Sub(s2, s1);
+    public static Vectors operator *(Vectors s1, Vectors s2) => Multipty(s1, s2);
+    public static Vectors operator *(Vectors s1, double s2) => Multipty(s1, s2);
+    public static Vectors operator *(double s1, Vectors s2) => Multipty(s2, s1);
+    public static Vectors operator /(Vectors s1, Vectors s2) => Divade(s1, s2);
+    public static Vectors operator /(Vectors s1, double s2) => Divade(s1, s2);
+    public static Vectors operator /(double s1, Vectors s2) => Divade(s2, s1);
+    public static Vectors operator &(Vectors s1, Vectors s2) => s1.Dot(s2);
+    public static Vectors operator -(Vectors s1) => Multipty(s1, -1);
 }
 
-private static double MaxDifference(double[,] a, double[,] b)
-{
-    double maxDiff = 0.0;
-    int rows = a.GetLength(0);
-    int cols = a.GetLength(1);
 
-    for (int i = 0; i < rows; i++)
-    {
-        for (int j = 0; j < cols; j++)
-        {
-            double diff = Math.Abs(a[i, j] - b[i, j]);
-            if (diff > maxDiff)
-            {
-                maxDiff = diff;
-            }
-        }
-    }
 
-    return maxDiff;
-}
-*/
