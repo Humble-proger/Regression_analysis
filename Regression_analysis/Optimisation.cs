@@ -1,5 +1,4 @@
 ﻿using Regression_analysis;
-using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 
 namespace Regression_analysis

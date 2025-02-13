@@ -1,6 +1,4 @@
 ﻿using Regression_analysis;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
 
 class Vectors
@@ -355,6 +353,54 @@ class Vectors
         }
         else throw new Exception("The Vector in not square. Cannon be reversed.");
     }
+    public static Vectors GetRow(Vectors vector, int index) {
+        double[] Result = new double[vector.Shape.Item2];
+        index = vector.GetIndex(index, false);
+        if (vector.transposes)
+        {
+            for (int j = 0; j < vector.Shape.Item2; j++)
+                Result[j] = vector.values[j][index];
+        }
+        else {
+            for (int i = 0; i < vector.Shape.Item2; i++)
+                Result[i] = vector.values[index][i];
+        }
+        return new Vectors(Result);
+    }
+    public void SetRow(Vectors row, int index) {
+        if (!row.IsVector())
+            throw new Exception("row is not Vector");
+        if (row.Size != this.Shape.Item2)
+            throw new Exception("The 'row' size does not match the vector row length");
+        index = this.GetIndex(index, false);
+        if (this.transposes)
+        {
+            for (int j = 0; j < this.Shape.Item2; j++)
+                this.values[j][index] = row[j];
+        }
+        else
+        {
+            for (int i = 0; i < this.Shape.Item2; i++)
+                this.values[index][i] = row[i];
+        }
+    }
+    private int GetIndex(int index, bool Item2 = true) {
+        if (Item2)
+        {
+            if (int.Abs(index) > Shape.Item2)
+                throw new Exception("Index out of range");
+            if (index < 0)
+                return index + Shape.Item2;
+            return index;
+        }
+        else {
+            if (int.Abs(index) > Shape.Item1)
+                throw new Exception("Index out if range.");
+            if (index < 0)
+                return index + Shape.Item1;
+            return index;
+        }
+    }
     public bool IsVector() {
         if (Shape.Item1 == 1 || Shape.Item2 == 1) return true;
         else return false;
@@ -379,22 +425,14 @@ class Vectors
     }
     public double this[int i, int j] {
         get {
-            int tmp = i, tmp_2 = j;
-            if (i < 0)
-                tmp += this.Shape.Item1;
-            if (j < 0)
-                tmp_2 += this.Shape.Item2;
+            int tmp = GetIndex(i, false), tmp_2 = GetIndex(j);
             if (transposes)
                 return values[tmp_2][tmp];
             else
                 return values[tmp][tmp_2];
         }
         set {
-            int tmp = i, tmp_2 = j;
-            if (i < 0)
-                tmp += this.Shape.Item1;
-            if (j < 0)
-                tmp_2 += this.Shape.Item2;
+            int tmp = GetIndex(i, false), tmp_2 = GetIndex(j);
             if (transposes)
                 values[tmp_2][tmp] = value;
             else
@@ -403,34 +441,36 @@ class Vectors
     }
     public double this[int i] {
         get {
-            int tmp = i;
-            if (i < 0)
-                tmp += this.Shape.Item1;
-            if (transposes)
+            if (transposes) {
+                int tmp = GetIndex(i, false);
                 if (Shape.Item1 == 1)
                     return values[tmp][0];
                 else
                     return values[0][tmp];
-            else
+            }
+            else {
+                int tmp = GetIndex(i);
                 if (Shape.Item1 == 1)
                     return values[0][tmp];
                 else
                     return values[tmp][0];
+            }
         }
         set {
-            int tmp = i;
-            if (i < 0)
-                tmp += this.Shape.Item1;
-            if (transposes)
+            if (transposes) {
+                int tmp = GetIndex(i, false);
                 if (Shape.Item1 == 1)
                     values[tmp][0] = value;
                 else
                     values[0][tmp] = value;
-            else
+            }
+            else {
+                int tmp = GetIndex(i);
                 if (Shape.Item1 == 1)
                     values[0][tmp] = value;
                 else
                     values[tmp][0] = value;
+            }
         }
     }
     

@@ -1,7 +1,4 @@
-﻿using System.ComponentModel.Design.Serialization;
-using System.Security.AccessControl;
-
-namespace Regression_analysis
+﻿namespace Regression_analysis
 {
     interface IModel
     {
@@ -75,6 +72,15 @@ namespace Regression_analysis
             for (int i = 0; i < RelatedFacts.Length; i++, index++)
                 result += x[0, RelatedFacts[i].Item1] * x[0, RelatedFacts[i].Item2] * TrueTheta[0, index];
             return result;
+        }
+        public Vectors CreateMatrixX(Vectors x) {
+            if (x.Shape.Item2 != CountFacts)
+                throw new Exception($"Incorrect matrix size x.The matrix row size is {x.Shape.Item2}, but should be {CountFacts}");
+            Vectors Result = Vectors.InitVectors((x.Shape.Item1, CountRegressor));
+            for (int i = 0; i < x.Shape.Item1; i++) {
+                Result.SetRow(VectorFunc(Vectors.GetRow(x, i)), i);
+            }
+            return Result;
         }
     }
 }
