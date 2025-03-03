@@ -4,6 +4,10 @@ namespace Regression_analysis.Regretion
 {
     public interface IModel
     {
+        public bool FreeMember {get; init;}
+        public int CountFacts { get; init;}
+        public int CountRegressor {get; init;}
+        
         public Vectors VectorFunc(Vectors x);
         public double True_value(Vectors x);
         public Vectors CreateMatrixX(Vectors x);
@@ -11,9 +15,9 @@ namespace Regression_analysis.Regretion
 
     public class LiniarModel : IModel
     {
-        public readonly bool FreeMember = false;
-        public readonly int CountFacts = 1;
-        public readonly int CountRegressor = 1;
+        public bool FreeMember { get; init; }  = false;
+        public int CountFacts { get; init; } = 1;
+        public int CountRegressor { get; init; } = 1;
         public readonly Vectors TrueTheta;
         public readonly (int, int)[] RelatedFacts;
 
