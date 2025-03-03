@@ -1,12 +1,15 @@
-﻿namespace Regression_analysis
+﻿using Regression_analysis.Types;
+
+namespace Regression_analysis.Regretion
 {
-    interface IModel
+    public interface IModel
     {
         public Vectors VectorFunc(Vectors x);
         public double True_value(Vectors x);
+        public Vectors CreateMatrixX(Vectors x);
     }
 
-    class LiniarModel : IModel
+    public class LiniarModel : IModel
     {
         public readonly bool FreeMember = false;
         public readonly int CountFacts = 1;

@@ -1,4 +1,6 @@
-﻿namespace Regression_analysis
+﻿using Regression_analysis.Types;
+
+namespace Regression_analysis.RandomDist
 {
     class Random_distribution
     {
