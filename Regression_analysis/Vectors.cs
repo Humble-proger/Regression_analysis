@@ -1,24 +1,24 @@
-﻿using System.Text;
+﻿
+using System;
+using System.Text;
 
-using Regression_analysis.RandomDist;
-
-namespace Regression_analysis.Types
+namespace Regression_analysis
 {
     public class Vectors
     {
         public (int, int) Shape;
         public int Size { get => Shape.Item1 * Shape.Item2; }
-        private readonly double[][] values;
-        private bool transposes = false;
+        private readonly double[][] _values;
+        private bool _transposes = false;
 
         public Vectors(double[][] value)
         {
-            this.values = value;
+            this._values = value;
             this.Shape = (value.Length, value[0].Length);
         }
         public Vectors(double[] value)
         {
-            this.values = [value];
+            this._values = [value];
             this.Shape = (1, value.Length);
         }
 
@@ -78,10 +78,86 @@ namespace Regression_analysis.Types
             return new Vectors(result);
         }
 
+        public static int MinIndex(Vectors vec)
+        {
+            double min = double.MaxValue;
+            int index = 0;
+
+            for (int i = 0; i < vec.Shape.Item2; i++)
+            {
+                if (vec[i] < min)
+                {
+                    min = vec[i];
+                    index = i;
+                }
+            }
+
+            return index;
+        }
+
+        public static int MaxIndex(Vectors vec)
+        {
+            double max = double.MinValue;
+            int index = 0;
+
+            for (int i = 0; i < vec.Shape.Item2; i++)
+            {
+                if (vec[i] > max)
+                {
+                    max = vec[i];
+                    index = i;
+                }
+            }
+
+            return index;
+        }
+
+        public static int SecondMaxIndex(Vectors vec, int excludeIndex)
+        {
+            double max = double.MinValue;
+            int index = 0;
+
+            for (int i = 0; i < vec.Shape.Item2; i++)
+            {
+                if (i != excludeIndex && vec[i] > max)
+                {
+                    max = vec[i];
+                    index = i;
+                }
+            }
+
+            return index;
+        }
+
+        public static double NormDifference(Vectors vec, double minValue)
+        {
+            double sum = 0;
+            for (int i = 0; i < vec.Shape.Item2; i++)
+            {
+                sum += Math.Pow(vec[i] - minValue, 2);
+            }
+            return Math.Sqrt(sum);
+        }
+
+        public static bool Equals(Vectors v1, Vectors v2)
+        {
+            if (v1.Shape.Item2 != v2.Shape.Item2)
+                return false;
+
+            for (int i = 0; i < v1.Shape.Item2; i++)
+            {
+                if (Math.Abs(v1[i] - v2[i]) > double.Epsilon)
+                    return false;
+            }
+
+            return true;
+        }
+
+        
         public Vectors T()
         {
             Vectors result = this.Copy();
-            result.transposes = !result.transposes;
+            result._transposes = !result._transposes;
             (result.Shape.Item1, result.Shape.Item2) = (result.Shape.Item2, result.Shape.Item1);
             return result;
         }
@@ -248,11 +324,11 @@ namespace Regression_analysis.Types
         }
         public static double Max(Vectors vec)
         {
-            double result = 0;
+            double result = double.MinValue;
             for (int i = 0; i < vec.Shape.Item1; i++)
                 for (int j = 0; j < vec.Shape.Item2; j++)
                 {
-                    var tmp = double.Abs(vec[i, j]);
+                    var tmp = vec[i, j];
                     if (tmp > result)
                         result = tmp;
                 }
@@ -264,24 +340,24 @@ namespace Regression_analysis.Types
             for (int i = 0; i < vec.Shape.Item1; i++)
                 for (int j = 0; j < vec.Shape.Item2; j++)
                 {
-                    var tmp = double.Abs(vec[i, j]);
+                    var tmp = vec[i, j];
                     if (tmp < result)
                         result = tmp;
                 }
             return result;
         }
-        public static Vectors Inv_Schulz(Vectors A, int max_iter = 100)
+        public static Vectors Inv_Schulz(Vectors a, int max_iter = 100)
         {
-            if (A.Shape.Item1 != A.Shape.Item2)
+            if (a.Shape.Item1 != a.Shape.Item2)
                 throw new Exception("The Vector in not square. Cannon be reversed.");
-            var A_T = A.T();
-            var A_inv = Vectors.Divade(A_T, Vectors.Norm(A.Dot(A_T)));
-            var E_2 = Vectors.Eig(A.Shape, 2.0);
+            var a_T = a.T();
+            var a_inv = Vectors.Divade(a_T, Vectors.Norm(a.Dot(a_T)));
+            var e_2 = Vectors.Eig(a.Shape, 2.0);
             for (int i = 0; i < max_iter; i++)
             {
-                A_inv = A_inv.Dot(Vectors.Sub(E_2, A.Dot(A_inv)));
+                a_inv = a_inv.Dot(Vectors.Sub(e_2, a.Dot(a_inv)));
             }
-            return A_inv;
+            return a_inv;
         }
         public static double Norm(Vectors vec)
         {
@@ -292,18 +368,20 @@ namespace Regression_analysis.Types
             return Math.Sqrt(summator);
         }
 
-        public static double Power_Iteration(Vectors A, double tol = 1e-1, int max_iter = 1000)
+        public static double Power_Iteration(Vectors a, double tol = 1e-1, int max_iter = 1000)
         {
-            var tmp = new Random_distribution();
-            Vectors b_k = tmp.Uniform(0, 1, (1, A.Shape.Item1)).T();
+            var tmp = new UniformDistribution();
+            #pragma warning disable CS8602 // Разыменование вероятной пустой ссылки.
+            Vectors b_k = tmp.Generate((1, a.Shape.Item1),  new Vectors([0, 1])).T();
+            #pragma warning restore CS8602 // Разыменование вероятной пустой ссылки.
             double eigenvalue_old = 0.0, eigenvalue_new = 0.0;
             Vectors bk_1, bk_T;
             for (int i = 0; i < max_iter; i++)
             {
-                bk_1 = A.Dot(b_k);
+                bk_1 = a.Dot(b_k);
                 b_k = Vectors.Divade(bk_1, Vectors.Norm(bk_1));
                 bk_T = b_k.T();
-                eigenvalue_new = bk_T.Dot(A.Dot(b_k))[0, 0] / bk_T.Dot(b_k)[0, 0];
+                eigenvalue_new = bk_T.Dot(a.Dot(b_k))[0, 0] / bk_T.Dot(b_k)[0, 0];
                 if (double.Abs(eigenvalue_new - eigenvalue_old) < tol) break;
                 eigenvalue_old = eigenvalue_new;
             }
@@ -311,88 +389,105 @@ namespace Regression_analysis.Types
 
         }
 
-        public static Vectors Inv(Vectors A)
+        public static Vectors Inv(Vectors a)
         {
-            if (A.Shape.Item1 == A.Shape.Item2)
+            if (a.Shape.Item1 == a.Shape.Item2)
             {
-                Vectors L = Vectors.InitVectors(A.Shape);
-                Vectors U = Vectors.InitVectors(A.Shape);
+                Vectors l = Vectors.InitVectors(a.Shape);
+                Vectors u = Vectors.InitVectors(a.Shape);
                 // LU-разложение
-                for (int i = 0; i < A.Shape.Item1; i++)
+                for (int i = 0; i < a.Shape.Item1; i++)
                 {
-                    for (int j = i; j < A.Shape.Item2; j++)
+                    for (int j = i; j < a.Shape.Item2; j++)
                     {
-                        U.values[i][j] = A.values[i][j];
+                        u._values[i][j] = a._values[i][j];
                         for (int k = 0; k < i; k++)
                         {
-                            U.values[i][j] -= L.values[i][k] * U.values[k][j];
+                            u._values[i][j] -= l._values[i][k] * u._values[k][j];
                         }
                     }
-                    for (int j = i; j < A.Shape.Item1; j++)
+                    for (int j = i; j < a.Shape.Item1; j++)
                     {
                         if (i == j)
                         {
-                            L.values[i][i] = 1; // диагональные элементы равны 1
+                            l._values[i][i] = 1; // диагональные элементы равны 1
                         }
                         else
                         {
-                            L.values[j][i] = A.values[j][i];
+                            l._values[j][i] = a._values[j][i];
                             for (int k = 0; k < i; k++)
                             {
-                                L.values[j][i] -= L.values[j][k] * U.values[k][i];
+                                l._values[j][i] -= l._values[j][k] * u._values[k][i];
                             }
-                            L.values[j][i] /= U.values[i][i];
+                            l._values[j][i] /= u._values[i][i];
                         }
                     }
                 }
 
                 // Теперь решим систему уравнений для получения обратной матрицы
-                Vectors A_inv = Vectors.InitVectors(A.Shape);
+                Vectors a_inv = Vectors.InitVectors(a.Shape);
 
-                for (int i = 0; i < A.Shape.Item1; i++)
+                for (int i = 0; i < a.Shape.Item1; i++)
                 {
                     // Решаем Ly = e_i для y
-                    double[] y = new double[A.Shape.Item1];
+                    double[] y = new double[a.Shape.Item1];
                     y[i] = 1;
-                    for (int j = 0; j < A.Shape.Item2; j++)
+                    for (int j = 0; j < a.Shape.Item2; j++)
                     {
                         for (int k = 0; k < j; k++)
                         {
-                            y[j] -= L.values[j][k] * y[k];
+                            y[j] -= l._values[j][k] * y[k];
                         }
                     }
 
                     // Теперь решаем Ux = y для x
-                    for (int j = A.Shape.Item2 - 1; j >= 0; j--)
+                    for (int j = a.Shape.Item2 - 1; j >= 0; j--)
                     {
-                        A_inv.values[j][i] = y[j];
-                        for (int k = j + 1; k < A.Shape.Item1; k++)
+                        a_inv._values[j][i] = y[j];
+                        for (int k = j + 1; k < a.Shape.Item1; k++)
                         {
-                            A_inv.values[j][i] -= U.values[j][k] * A_inv.values[k][i];
+                            a_inv._values[j][i] -= u._values[j][k] * a_inv._values[k][i];
                         }
-                        A_inv.values[j][i] /= U.values[j][j];
+                        a_inv._values[j][i] /= u._values[j][j];
                     }
                 }
 
-                return A_inv;
+                return a_inv;
             }
             else throw new Exception("The Vector in not square. Cannon be reversed.");
         }
+
+        public static Vectors GetColumn(Vectors vector, int colIndex)
+        {
+            double[] result = new double[vector.Shape.Item1];
+            colIndex = vector.GetIndex(colIndex, false);
+            for (int i = 0; i < vector.Shape.Item1; i++)
+                result[i] = vector[i, colIndex];
+            return new Vectors(result);
+        }
+
+        // Обновляет столбец в матрице D
+        public static void SetColumn(Vectors vector, Vectors column, int colIndex)
+        {
+            for (int i = 0; i < vector.Shape.Item1; i++)
+                vector[i, colIndex] = column[i];
+        }
+
         public static Vectors GetRow(Vectors vector, int index)
         {
-            double[] Result = new double[vector.Shape.Item2];
+            double[] result = new double[vector.Shape.Item2];
             index = vector.GetIndex(index, false);
-            if (vector.transposes)
+            if (vector._transposes)
             {
                 for (int j = 0; j < vector.Shape.Item2; j++)
-                    Result[j] = vector.values[j][index];
+                    result[j] = vector._values[j][index];
             }
             else
             {
                 for (int i = 0; i < vector.Shape.Item2; i++)
-                    Result[i] = vector.values[index][i];
+                    result[i] = vector._values[index][i];
             }
-            return new Vectors(Result);
+            return new Vectors(result);
         }
         public void SetRow(Vectors row, int index)
         {
@@ -401,40 +496,26 @@ namespace Regression_analysis.Types
             if (row.Size != this.Shape.Item2)
                 throw new Exception("The 'row' size does not match the vector row length");
             index = this.GetIndex(index, false);
-            if (this.transposes)
+            if (this._transposes)
             {
                 for (int j = 0; j < this.Shape.Item2; j++)
-                    this.values[j][index] = row[j];
+                    this._values[j][index] = row[j];
             }
             else
             {
                 for (int i = 0; i < this.Shape.Item2; i++)
-                    this.values[index][i] = row[i];
+                    this._values[index][i] = row[i];
             }
         }
-        private int GetIndex(int index, bool Item2 = true)
+        private int GetIndex(int index, bool item2 = true)
         {
-            if (Item2)
-            {
-                if (int.Abs(index) > Shape.Item2)
-                    throw new Exception("Index out of range");
-                if (index < 0)
-                    return index + Shape.Item2;
-                return index;
-            }
-            else
-            {
-                if (int.Abs(index) > Shape.Item1)
-                    throw new Exception("Index out if range.");
-                if (index < 0)
-                    return index + Shape.Item1;
-                return index;
-            }
+            return item2
+                ? int.Abs(index) > Shape.Item2 ? throw new Exception("Index out of range") : index < 0 ? index + Shape.Item2 : index
+                : int.Abs(index) > Shape.Item1 ? throw new Exception("Index out if range.") : index < 0 ? index + Shape.Item1 : index;
         }
         public bool IsVector()
         {
-            if (Shape.Item1 == 1 || Shape.Item2 == 1) return true;
-            else return false;
+            return Shape.Item1 == 1 || Shape.Item2 == 1;
         }
 
         public static double Sum(Vectors vector) {
@@ -463,63 +544,88 @@ namespace Regression_analysis.Types
             }
             else return "Empty";
         }
+        public bool SaveToDAT(string path, string title = "Temp title") {
+            var stream = new StringBuilder(title);
+            stream.Append('\n');
+            stream.AppendLine($"0 {Size}");
+            if (IsVector())
+            {
+                int index = 0;
+                for (int i = 0; i < Size / 5; i++)
+                {
+                    for (int j = 0; j < 4 && index < Size; j++, index++)
+                    {
+                        stream.Append(FormattableString.Invariant($"{this[index]}"));
+                        stream.Append(' ');
+                    }
+                    if (index < Size)
+                    {
+                        stream.Append(FormattableString.Invariant($"{this[index]}"));
+                        index++;
+                    }
+                    stream.Append('\n');
+                }
+            }
+            else {
+                for (int i = 0; i < Shape.Item1; i++) {
+                    for (int j = 0; j < Shape.Item2; j++) {
+                        stream.Append(FormattableString.Invariant($"{this[i, j]}"));
+                        stream.Append(' ');
+                    }
+                    stream.Append('\n');
+                }
+            }
+            File.WriteAllText(path, stream.ToString());
+            return File.Exists(path);
+        }
         public double this[int i, int j]
         {
             get
             {
                 int tmp = GetIndex(i, false), tmp_2 = GetIndex(j);
-                if (transposes)
-                    return values[tmp_2][tmp];
-                else
-                    return values[tmp][tmp_2];
+                return _transposes ? _values[tmp_2][tmp] : _values[tmp][tmp_2];
             }
             set
             {
                 int tmp = GetIndex(i, false), tmp_2 = GetIndex(j);
-                if (transposes)
-                    values[tmp_2][tmp] = value;
+                if (_transposes)
+                    _values[tmp_2][tmp] = value;
                 else
-                    values[tmp][tmp_2] = value;
+                    _values[tmp][tmp_2] = value;
             }
         }
         public double this[int i]
         {
             get
             {
-                if (transposes)
+                if (_transposes)
                 {
                     int tmp = GetIndex(i, false);
-                    if (Shape.Item1 == 1)
-                        return values[tmp][0];
-                    else
-                        return values[0][tmp];
+                    return Shape.Item1 == 1 ? _values[tmp][0] : _values[0][tmp];
                 }
                 else
                 {
                     int tmp = GetIndex(i);
-                    if (Shape.Item1 == 1)
-                        return values[0][tmp];
-                    else
-                        return values[tmp][0];
+                    return Shape.Item1 == 1 ? _values[0][tmp] : _values[tmp][0];
                 }
             }
             set
             {
-                if (transposes)
+                if (_transposes)
                 {
                     int tmp = GetIndex(i, false);
                     if (Shape.Item1 == 1)
-                        values[tmp][0] = value;
+                        _values[tmp][0] = value;
                     else
-                        values[0][tmp] = value;
+                        _values[0][tmp] = value;
                 }
                 else
                 {
                     int tmp = GetIndex(i);
                     if (Shape.Item1 == 1)
-                        values[0][tmp] = value;
+                        _values[0][tmp] = value;
                     else
-                        values[tmp][0] = value;
+                        _values[tmp][0] = value;
                 }
             }
         }

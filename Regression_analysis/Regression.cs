@@ -1,13 +1,14 @@
-﻿using Regression_analysis.Types;
-
-namespace Regression_analysis.Regretion
+﻿
+namespace Regression_analysis
 {
     public interface IModel
     {
         public bool FreeMember {get; init;}
         public int CountFacts { get; init;}
         public int CountRegressor {get; init;}
-        
+        public Vectors TrueTheta { get; init; }
+
+
         public Vectors VectorFunc(Vectors x);
         public double True_value(Vectors x);
         public Vectors CreateMatrixX(Vectors x);
@@ -18,7 +19,7 @@ namespace Regression_analysis.Regretion
         public bool FreeMember { get; init; }  = false;
         public int CountFacts { get; init; } = 1;
         public int CountRegressor { get; init; } = 1;
-        public readonly Vectors TrueTheta;
+        public Vectors TrueTheta { get; init; }
         public readonly (int, int)[] RelatedFacts;
 
         public LiniarModel(int count_facts, (int, int)[] related_facts, Vectors truetheta, bool free_member = false) {
@@ -57,7 +58,7 @@ namespace Regression_analysis.Regretion
             double[] result = new double[CountRegressor];
             int index = 0;
             if (FreeMember)
-                result[++index] = 1;
+                result[index++] = 1;
             for (int i = 0; i < CountFacts; i++, index++)
                 result[index] = x[0, i];
             for (int i = 0; i < RelatedFacts.Length; i++, index++)
@@ -73,7 +74,7 @@ namespace Regression_analysis.Regretion
             int index = 0;
             double result = 0;
             if (FreeMember)
-                result += TrueTheta[0, ++index];
+                result += TrueTheta[0, index++];
             for (int i = 0; i < CountFacts; i++, index++)
                 result += x[0, i] * TrueTheta[0, index];
             for (int i = 0; i < RelatedFacts.Length; i++, index++)
@@ -83,11 +84,11 @@ namespace Regression_analysis.Regretion
         public Vectors CreateMatrixX(Vectors x) {
             if (x.Shape.Item2 != CountFacts)
                 throw new Exception($"Incorrect matrix size x.The matrix row size is {x.Shape.Item2}, but should be {CountFacts}");
-            Vectors Result = Vectors.InitVectors((x.Shape.Item1, CountRegressor));
+            Vectors result = Vectors.InitVectors((x.Shape.Item1, CountRegressor));
             for (int i = 0; i < x.Shape.Item1; i++) {
-                Result.SetRow(VectorFunc(Vectors.GetRow(x, i)), i);
+                result.SetRow(VectorFunc(Vectors.GetRow(x, i)), i);
             }
-            return Result;
+            return result;
         }
     }
 }
