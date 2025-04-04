@@ -23,7 +23,7 @@ namespace Regression_analysis
             int? seed = null
             ) 
         {
-
+            /*
             if (countIteration <= 0 || countObservations <= 0) return null;
             Vectors Statistics = Vectors.InitVectors((1, countIteration));
             var Interval = new Vectors([-1e+5, 1e+5]);
@@ -53,9 +53,9 @@ namespace Regression_analysis
                     matrixX = model.CreateMatrixX(x);
                     vectorE = NormalDistribution.Generate((1, countObservations), paramsDist, generator);
                     y = (matrixX & model.TrueTheta.T()).T() + vectorE;
-                    calcTheta = func
                 }
-            }
+            */
+            return new Vectors([[]]);
         }
     }
 }
