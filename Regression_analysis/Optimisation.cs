@@ -8,8 +8,8 @@ namespace Regression_analysis
         bool IsUseGradient { get; }
 
         public abstract OptRes Optimisate(
-            Func<IModel, Vectors, Vectors[], double> func,
-            Func<IModel, Vectors, Vectors[], Vectors>? dffunc,
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors x0,
             Vectors[] @params,
@@ -17,8 +17,8 @@ namespace Regression_analysis
             int maxIter = 500
             );
         public abstract OptResExtended OptimisateRandomInit(
-            Func<IModel, Vectors, Vectors[], double> func,
-            Func<IModel, Vectors, Vectors[], Vectors>? dffunc,
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors[] @params,
             (int, int) shapeInitParam,
@@ -66,7 +66,7 @@ namespace Regression_analysis
     {
         private static double Min(params double[] numbers) => numbers.Min();
         public static OptRes Optimisate(
-            Func<IModel, Vectors, Vectors[], double> func,
+            LogLikelihoodFunction func,
             IModel model,
             Vectors[] @params,
             Vectors xk,
@@ -149,8 +149,8 @@ namespace Regression_analysis
         }
 
         public OptRes Optimisate(
-            Func<IModel, Vectors, Vectors[], double> func,
-            Func<IModel, Vectors, Vectors[], Vectors>? dffunc,
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors x0,
             Vectors[] @params,
@@ -161,14 +161,14 @@ namespace Regression_analysis
             if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
             double alphaK = 1.0, w;
             Vectors xk = x0, xkp1, gfk = dffunc(model, x0, @params), gfkp1, pk = -gfk;
-            int iter = 0, calcFunc = 0; double norm;
+            int iter = 0, calcFunc = 0; double norm = double.MaxValue;
             OptRes linRes;
 
             Vectors DfFunc(Vectors x0) => dffunc(model, x0, @params);
 
             OptRes FindOptAlpha(Vectors xk, Vectors pk) => QuadraticInterpolation.Optimisate(func, model, @params, xk, pk);
 
-            for (; (norm = Vectors.Norm(pk)) > eps && iter < maxIter; iter++)
+            for (; norm > eps && iter < maxIter; iter++)
             {
                 linRes = FindOptAlpha(xk, pk);
                 alphaK = linRes.MinPoint[0];
@@ -177,6 +177,7 @@ namespace Regression_analysis
                 gfkp1 = DfFunc(xkp1);
                 w = ScalarMult(gfkp1, gfkp1) / ScalarMult(gfk, gfk);
                 pk = (gfkp1 - w * pk) * -1;
+                norm = Vectors.Norm(xkp1 - xk);
                 (xk, gfk) = (xkp1, gfkp1);
             }
             OptRes temp_res = new()
@@ -193,8 +194,8 @@ namespace Regression_analysis
         }
 
         public OptResExtended OptimisateRandomInit(
-            Func<IModel, Vectors, Vectors[], double> func,
-            Func<IModel, Vectors, Vectors[], Vectors>? dffunc,
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors[] @params,
             (int, int) shapeInitParam,
@@ -246,6 +247,8 @@ namespace Regression_analysis
                     }
                     result.CountCalcFunc += resMethod.CountCalcFunc;
                 }
+                Console.WriteLine(result.NumberRebounds);
+                Console.WriteLine(resMethod.Norm);
             }
             return result;
         }
@@ -270,8 +273,8 @@ namespace Regression_analysis
         }
 
         public OptRes Optimisate(
-            Func<IModel, Vectors, Vectors[], double> func,
-            Func<IModel, Vectors, Vectors[], Vectors>? dffunc,
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors x0,
             Vectors[] @params,
@@ -296,6 +299,8 @@ namespace Regression_analysis
                 Norm = double.MaxValue
             };
 
+            double denominatorA, denominatorB;
+
             OptRes FindOptAlpha(Vectors xk, Vectors pk) => QuadraticInterpolation.Optimisate(func, model, @params, xk, pk);
 
             //Console.WriteLine("Начало оптимизации...");
@@ -315,13 +320,20 @@ namespace Regression_analysis
                 //Console.WriteLine($"sk: {sk}; rk: {rk}");
 
                 // Считаем Гессиан
-                a = (sk.T() & sk) / ScalarMult(sk, rk);
-                b = (hk & (rk.T() & rk) & hk) / ScalarMult(rk & hk, rk);
-                //Console.WriteLine($"A:\n{A}; B:\n{B}");
-                hk = hk + a - b;
-                //Console.WriteLine($"Hk:\n{Hk}");
+                denominatorA = ScalarMult(sk, rk);
+                denominatorB = ScalarMult(rk & hk, rk);
+
+                if (double.Abs(denominatorA) < eps || double.Abs(denominatorB) < eps)
+                {
+                    hk = Vectors.Eig(hk.Shape);
+                }
+                else 
+                {
+                    a = (sk.T() & sk) / denominatorA;
+                    b = (hk & (rk.T() & rk) & hk) / denominatorB;
+                    hk = hk + a - b;
+                }
                 xk = xkp1; gfk = gfkp1;
-                //Console.WriteLine("---------------------");
             }
             if (result.Norm < eps)
                 result.Convergence = true;
@@ -330,8 +342,8 @@ namespace Regression_analysis
             return result;
         }
         public OptResExtended OptimisateRandomInit(
-            Func<IModel, Vectors, Vectors[], double> func,
-            Func<IModel, Vectors, Vectors[], Vectors>? dffunc,
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors[] @params,
             (int, int) shapeInitParam,
@@ -347,7 +359,7 @@ namespace Regression_analysis
             OptRes resMethod;
             OptResExtended result = new()
             {
-                Tol = double.Epsilon,
+                Tol = eps,
                 CountCalcFunc = 0,
                 Convergence = false,
                 NumIteration = 0,
@@ -357,6 +369,7 @@ namespace Regression_analysis
             var tmp = new Vectors([minValue, maxValue]);
             for (; result.NumberRebounds < maxIter && !result.Convergence; result.NumberRebounds++)
             {
+                
                 #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                 result.InitParametrs = rand.Generate(shapeInitParam, tmp);
                 #pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
@@ -384,6 +397,8 @@ namespace Regression_analysis
                     }
                     result.CountCalcFunc += resMethod.CountCalcFunc;
                 }
+                Console.WriteLine(result.NumberRebounds);
+                Console.WriteLine(resMethod.Norm);
             }
             return result;
         }
@@ -400,8 +415,8 @@ namespace Regression_analysis
         public double t { get; set; } = 1.0;
 
         public OptRes Optimisate(
-            Func<IModel, Vectors, Vectors[], double> func,
-            Func<IModel, Vectors, Vectors[], Vectors>? dffunc,
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors x0,
             Vectors[] @params,
@@ -480,8 +495,8 @@ namespace Regression_analysis
         }
 
         public OptResExtended OptimisateRandomInit(
-            Func<IModel, Vectors, Vectors[], double> func,
-            Func<IModel, Vectors, Vectors[], Vectors>? dffunc,
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors[] @params,
             (int, int) shapeInitParam,
@@ -494,16 +509,20 @@ namespace Regression_analysis
         {
             var rand = seed == null ?  new() : (UniformDistribution) new(seed);
             OptRes resMethod;
+            var tmp = new Vectors([minValue, maxValue]);
             OptResExtended result = new()
             {
                 Tol = eps,
-                CountCalcFunc = 0,
-                Convergence = false,
-                NumIteration = 0,
-                NumberRebounds = 0,
-                Norm = double.MaxValue
+                InitParametrs = Vectors.Zeros(shapeInitParam)
             };
-            var tmp = new Vectors([minValue, maxValue]);
+            resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
+            result.Convergence = resMethod.Convergence;
+            result.NumIteration = resMethod.NumIteration;
+            result.NumberRebounds += 1;
+            result.Norm = resMethod.Norm;
+            result.MinValueFunction = resMethod.MinValueFunction;
+            result.MinPoint = resMethod.MinPoint;
+            result.CountCalcFunc = resMethod.CountCalcFunc;
             for (; result.NumberRebounds < maxIter && !result.Convergence; result.NumberRebounds++)
             {
                 #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
@@ -557,7 +576,7 @@ namespace Regression_analysis
             return d;
         }
 
-        private static Vectors EvaluateSimplex(Func<IModel, Vectors, Vectors[], double> func, ref IModel model, ref Vectors[] @params, Vectors d, ref int countFuncEvals)
+        private static Vectors EvaluateSimplex(LogLikelihoodFunction func, ref IModel model, ref Vectors[] @params, Vectors d, ref int countFuncEvals)
         {
             int verticesCount = d.Shape.Item2; // Число столбцов (N+1 вершин)
 
@@ -611,7 +630,7 @@ namespace Regression_analysis
             ref Vectors[] @params,
             Vectors resF,
             Vectors xBest,
-            Func<IModel, Vectors, Vectors[], double> func,
+            LogLikelihoodFunction func,
             ref int countFuncEvals)
         {
             int verticesCount = d.Shape.Item2; // Число вершин (N+1)
@@ -637,31 +656,31 @@ namespace Regression_analysis
 
     abstract class TestFunction
     {
-        public static double Function1(Vectors vec)
+        public static double Function1(IModel _, Vectors vec, Vectors[] __)
         {
             double tmp = vec[1] - vec[0], tmp2 = 1 - vec[0];
             return 100 * tmp * tmp + tmp2 * tmp2;
         }
-        public static double Function2(Vectors vec)
+        public static double Function2(IModel _, Vectors vec, Vectors[] __)
         {
             double tmp = vec[1] - vec[0] * vec[0], tmp2 = 1 - vec[0];
             return 100 * tmp * tmp + tmp2 * tmp2;
         }
-        public static double Function3(Vectors vec)
+        public static double Function3(IModel _, Vectors vec, Vectors[] __)
         {
             double tmp = (vec[1] - 2) / 3, tmp1 = (vec[1] - 2) / 3, tmp2 = vec[0] - 1, tmp3 = (vec[1] - 1) / 2;
             return -(1 / (1 + tmp * tmp + tmp1 * tmp1) + 3 / (1 + tmp2 * tmp2 + tmp3 * tmp3));
         }
-        public static Vectors DFunction1(Vectors vec, Vectors _)
+        public static Vectors DFunction1(IModel _, Vectors vec, Vectors[] __)
         {
             return new Vectors([-200 * vec[1] + 202 * vec[0] - 2, 200 * (vec[1] - vec[0])]);
         }
-        public static Vectors DFunction2(Vectors vec, Vectors _)
+        public static Vectors DFunction2(IModel _, Vectors vec, Vectors[] __)
         {
             var tmp = vec[1] - vec[0] * vec[0];
             return new Vectors([-400 * tmp * vec[0] + 2 * vec[0] - 2, 200 * tmp]);
         }
-        public static Vectors DFunction3(Vectors vec, Vectors _)
+        public static Vectors DFunction3(IModel _, Vectors vec, Vectors[] __)
         {
             double tmp = (vec[1] - 2) / 3, tmp1 = (vec[1] - 2) / 3, tmp2 = vec[0] - 1, tmp3 = (vec[1] - 1) / 2;
             double denominator1 = 1 + tmp * tmp + tmp1 * tmp1, denominator2 = 1 + tmp2 * tmp2 + tmp3 * tmp3;

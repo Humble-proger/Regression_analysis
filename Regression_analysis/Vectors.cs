@@ -1,6 +1,4 @@
-﻿
-using System;
-using System.Text;
+﻿using System.Text;
 
 namespace Regression_analysis
 {
@@ -66,6 +64,109 @@ namespace Regression_analysis
             return new Vectors(result);
         }
 
+        public double Mean() => Vectors.Sum(this) / Size;
+        public static double Mean(Vectors vector) => Vectors.Sum(vector) / vector.Size;
+
+        public double Variance(double? mean = null) 
+        { 
+            mean ??= this.Mean();
+            double variance = 0.0;
+            for (int i = 0; i < Shape.Item1; i++) {
+                for (int j = 0; j < Shape.Item2; j++) {
+                    variance += double.Pow(this[i, j] - (double) mean, 2);
+                }
+            }
+            return variance / Size;
+        }
+
+        public static double Variance(Vectors vectors, double? mean = null) 
+        { 
+            mean ??= Vectors.Mean(vectors);
+            double variance = 0.0;
+            for (int i = 0; i < vectors.Shape.Item1; i++)
+            {
+                for (int j = 0; j < vectors.Shape.Item2; j++)
+                {
+                    variance += double.Pow(vectors[i, j] - (double) mean, 2);
+                }
+            }
+            return variance / vectors.Size;
+        }
+        public double VarianceNoOffset(double? mean = null)
+        {
+            mean ??= this.Mean();
+            double variance = 0.0;
+            for (int i = 0; i < Shape.Item1; i++)
+            {
+                for (int j = 0; j < Shape.Item2; j++)
+                {
+                    variance += double.Pow(this[i, j] - (double) mean, 2);
+                }
+            }
+            return variance / (Size - 1);
+        }
+
+        public static double VarianceNoOffset(Vectors vectors, double? mean = null)
+        {
+            mean ??= Vectors.Mean(vectors);
+            double variance = 0.0;
+            for (int i = 0; i < vectors.Shape.Item1; i++)
+            {
+                for (int j = 0; j < vectors.Shape.Item2; j++)
+                {
+                    variance += double.Pow(vectors[i, j] - (double) mean, 2);
+                }
+            }
+            return variance / (vectors.Size - 1);
+        }
+
+        public void Sort() 
+        {
+            if (_transposes)
+            {
+                T();
+                for (int i = 0; i < Shape.Item1; i++)
+                {
+                    this._values[i] = [.. this._values[i].OrderBy(x => x)];
+                }
+                T();
+            }
+            else 
+            {
+                for (int i = 0; i < Shape.Item1; i++)
+                {
+                    this._values[i] = [.. this._values[i].OrderBy(x => x)];
+                }
+            }
+        }
+
+        public static double Median(Vectors vector, bool sort = false) 
+        {
+            if (!vector.IsVector() || vector.Size == 0) throw new ArgumentException("Массив данных должен быть вектором.");
+            if (vector.Size == 1) return vector[0];
+            if (!sort)
+            { 
+                vector = vector.Copy();
+                vector.Sort();
+            }
+            return vector.Size + 1 % 2 != 0 ?  vector[(vector.Size + 1) / 2] :  (vector[vector.Size / 2] + vector[vector.Size / 2 + 1]) / 2;
+        }
+
+        public static double Percentile(Vectors vector, double procentile, bool sort = false) 
+        {
+            if (!vector.IsVector()) throw new ArgumentException("Массив данных должен быть вектором.");
+            if (vector.Size == 0) throw new ArgumentException("Массив должен быть не пустым.");
+            if (procentile < 0 || procentile > 1) throw new ArgumentException("Введённый проценталь выходит за диапозон определения [0, 1]");
+            if (!sort) 
+            {
+                vector = vector.Copy();
+                vector.Sort();
+            }
+            double index = (vector.Size - 1) * procentile;
+            int lowerIndex = (int) Math.Floor(index);
+            double fraction = index - lowerIndex;
+            return lowerIndex >= vector.Size - 1 ? vector[-1] : vector[lowerIndex] + fraction * (vector[lowerIndex + 1] - vector[lowerIndex]);
+        }
         public Vectors Copy()
         {
             double[][] result = new double[this.Shape.Item1][];
@@ -531,6 +632,13 @@ namespace Regression_analysis
             if (this.Size > 0)
             {
                 StringBuilder sb = new();
+                if (this.IsVector()) {
+                    sb.Append($"[ {this[0].ToString("E2")}");
+                    for (int i = 1; i < Size; i++)
+                        sb.Append($" {this[i].ToString("E2")}");
+                    sb.Append(" ]");
+                    return sb.ToString();
+                }
                 for (int i = 0; i < this.Shape.Item1; i++)
                 {
                     sb.Append($"[ {this[i, 0].ToString("E2")}");
@@ -545,6 +653,7 @@ namespace Regression_analysis
             else return "Empty";
         }
         public bool SaveToDAT(string path, string title = "Temp title") {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
             var stream = new StringBuilder(title);
             stream.Append('\n');
             stream.AppendLine($"0 {Size}");
@@ -575,7 +684,7 @@ namespace Regression_analysis
                     stream.Append('\n');
                 }
             }
-            File.WriteAllText(path, stream.ToString());
+            File.WriteAllText(path, stream.ToString(), Encoding.GetEncoding(1251));
             return File.Exists(path);
         }
         public double this[int i, int j]

@@ -1,4 +1,7 @@
-﻿namespace Regression_analysis
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
+
+namespace Regression_analysis
 {
     internal static class MathConstants
     {
@@ -17,31 +20,41 @@
 
     public interface IRandomDistribution
     {
+        string Name { get; }
+        int CountParametrsDistribution { get; }
+        Vectors DefaultParametrs { get; }
         public abstract static double Generate(in Random rand);
         public abstract static double? Generate(Vectors paramsDist, in Random rand);
         public abstract static Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand);
         public double Generate();
         public double? Generate(Vectors paramsDist);
         public Vectors? Generate((int, int) shape, Vectors paramsDist);
-        public abstract static bool CheckParamsDist(Vectors paramsDist);
+        public bool CheckParamsDist(Vectors paramsDist);
     }
 
     public class UniformDistribution(int? seed = null) : IRandomDistribution
     {
+        public int CountParametrsDistribution => 2;
+        public Vectors DefaultParametrs => new([0, 1]);
+
+        public string Name => "Равномерное";
+
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
 
-        public static bool CheckParamsDist(Vectors paramsDist)
+        private static bool CheckParams(Vectors paramsDist)
         {
             return paramsDist.Size == 2 && paramsDist[0] < paramsDist[1];
         }
+        public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
+
         private static double Uniform(double a, double b, in Random rand) => a + rand.NextDouble() * (b - a);
         public static double Generate(in Random rand) => rand.NextDouble();
-        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParamsDist(paramsDist) ? Uniform(paramsDist[0], paramsDist[1], rand) : null;
+        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParams(paramsDist) ? Uniform(paramsDist[0], paramsDist[1], rand) : null;
         public double Generate() => _random.NextDouble();
-        public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Uniform(paramsDist[0], paramsDist[1], _random) : null;
+        public double? Generate(Vectors paramsDist) => this.CheckParamsDist(paramsDist) ? global::Regression_analysis.UniformDistribution.Uniform(paramsDist[0], paramsDist[1], _random) : null;
         public Vectors? Generate((int, int) shape, Vectors paramsDist)
         {
-            if (!CheckParamsDist(paramsDist)) return null;
+            if (!this.CheckParamsDist(paramsDist)) return null;
             var vec = Vectors.InitVectors(shape);
             for (var i = 0; i < shape.Item1; i++)
                 for (var j = 0; j < shape.Item2; j++)
@@ -50,7 +63,7 @@
         }
 
         public static Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand) {
-            if (!CheckParamsDist(paramsDist)) return null;
+            if (!CheckParams(paramsDist)) return null;
             var vec = Vectors.InitVectors(shape);
             for (var i = 0; i < shape.Item1; i++)
                 for (var j = 0; j < shape.Item2; j++)
@@ -60,10 +73,16 @@
     }
 
     public class ExponentialDistribution(int? seed = null) : IRandomDistribution {
-        
+
+        public int CountParametrsDistribution => 2;
+        public Vectors DefaultParametrs => new([0, 1]);
+
+        public string Name => "Экспоненциальное";
+
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Exponential(double loc, double scale, double u) => -Math.Log(1 - u) * scale + loc;
-        public static bool CheckParamsDist(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Exponential(0, 1, _random.NextDouble());
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Exponential(paramsDist[0], paramsDist[1], _random.NextDouble()) : null;
         public Vectors? Generate((int, int) shape, Vectors paramsDist) {
@@ -75,9 +94,9 @@
             return result;
         }
         public static double Generate(in Random rand) => Exponential(0, 1, rand.NextDouble());
-        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParamsDist(paramsDist) ? Exponential(paramsDist[0], paramsDist[1], rand.NextDouble()) : null;
+        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParams(paramsDist) ? Exponential(paramsDist[0], paramsDist[1], rand.NextDouble()) : null;
         public static Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand) {
-            if (!CheckParamsDist(paramsDist)) return null;
+            if (!CheckParams(paramsDist)) return null;
             var result = Vectors.InitVectors(shape);
             for (var i = 0; i < shape.Item1; i++)
                 for (var j = 0; j < shape.Item2; j++)
@@ -88,9 +107,15 @@
 
     public class LaplaceDistribution(int? seed = null) : IRandomDistribution
     {
+        public int CountParametrsDistribution => 2;
+        public Vectors DefaultParametrs => new([0, 1]);
+
+        public string Name => "Лапласа";
+
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Laplace(double loc, double scale, in Random rand) => loc - double.Sign(-1 + rand.NextDouble() * 2) * Math.Log(1 - rand.NextDouble()) * scale;
-        public static bool CheckParamsDist(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Laplace(0, 1, _random);
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Laplace(paramsDist[0], paramsDist[1], _random) : null;
         public Vectors? Generate((int, int) shape, Vectors paramsDist) {
@@ -102,23 +127,30 @@
             return result;
         }
         public static double Generate(in Random rand) => Laplace(0, 1, rand);
-        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParamsDist(paramsDist) ? Laplace(paramsDist[0], paramsDist[1], rand) : null;
+        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParams(paramsDist) ? Laplace(paramsDist[0], paramsDist[1], rand) : null;
         public static Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand) {
-            if (!CheckParamsDist(paramsDist)) return null;
+            if (!CheckParams(paramsDist)) return null;
             var result = Vectors.InitVectors(shape);
             for (var i = 0; i < shape.Item1; i++)
                 for (var j = 0; j < shape.Item2; j++)
                     result[i, j] = Laplace(paramsDist[0], paramsDist[1], rand);
             return result;
         }
+
+        
     }
 
     public class CauchyDistribution(int? seed = null) : IRandomDistribution
     {
-        private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
+        public int CountParametrsDistribution => 2;
+        public Vectors DefaultParametrs => new([0, 1]);
 
+        public string Name => "Коши";
+
+        private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Cauchy(double loc, double scale, double u) => loc + scale * Math.Tan(double.Pi * (-1.5 + u * 2));
-        public static bool CheckParamsDist(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Cauchy(0, 1, _random.NextDouble());
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Cauchy(paramsDist[0], paramsDist[1], _random.NextDouble()) : null;
         public Vectors? Generate((int, int) shape, Vectors paramsDist) 
@@ -132,9 +164,9 @@
         }
 
         public static double Generate(in Random rand) => Cauchy(0, 1, rand.NextDouble());
-        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParamsDist(paramsDist) ? Cauchy(paramsDist[0], paramsDist[1], rand.NextDouble()) : null;
+        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParams(paramsDist) ? Cauchy(paramsDist[0], paramsDist[1], rand.NextDouble()) : null;
         public static Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand) {
-            if (!CheckParamsDist(paramsDist)) return null;
+            if (!CheckParams(paramsDist)) return null;
             var result = Vectors.InitVectors(shape);
             for (var i = 0; i < shape.Item1; i++)
                 for (var j = 0; j < shape.Item2; j++)
@@ -144,9 +176,13 @@
     }
 
     public class NormalDistribution(int? seed = null) : IRandomDistribution
-    { 
-        private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
+    {
+        public int CountParametrsDistribution => 2;
+        public Vectors DefaultParametrs => new([0, 1]);
 
+        public string Name => "Нормальное";
+
+        private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Uniform(double a, double b, in Random rand) => a + (b - a) * rand.NextDouble();
         private static double Normal(double loc, double scale, in Random rand) {
             double e1 = Uniform(-1, 1, rand), e2 = Uniform(-1, 1, rand);
@@ -158,7 +194,8 @@
             }
             return e1 * Math.Sqrt(-2 * Math.Log(s) / s) * scale + loc;
         }
-        public static bool CheckParamsDist(Vectors paramsDist) => paramsDist.Size == 2 & paramsDist[1] > 0;
+        private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 & paramsDist[1] > 0;
+        public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Normal(0, 1, _random);
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Normal(paramsDist[0], paramsDist[1], _random) : null;
         public Vectors? Generate((int, int) shape, Vectors paramsDist) 
@@ -204,9 +241,9 @@
         }
 
         public static double Generate(in Random rand) => Normal(0, 1, rand);
-        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParamsDist(paramsDist) ? Normal(paramsDist[0], paramsDist[1], rand) : null;
+        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParams(paramsDist) ? Normal(paramsDist[0], paramsDist[1], rand) : null;
         public static Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand) {
-            if (!CheckParamsDist(paramsDist)) return null;
+            if (!CheckParams(paramsDist)) return null;
             var result = Vectors.InitVectors(shape);
             int count_1 = shape.Item1 / 2, count_2 = shape.Item2 / 2;
             double val;
@@ -249,6 +286,11 @@
 
     public class GammaDistribution(int? seed = null) : IRandomDistribution 
     {
+        public int CountParametrsDistribution => 3;
+        public Vectors DefaultParametrs => new([0, 1, 1]);
+
+        public string Name => "Гамма";
+
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         
 #pragma warning disable CS8629 // Тип значения, допускающего NULL, может быть NULL.
@@ -369,7 +411,8 @@
             return scale * result + loc;
         }
 
-        public static bool CheckParamsDist(Vectors paramsDist) => paramsDist.Size == 3 && paramsDist[1] > 0 && paramsDist[2] > 0;
+        private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 3 && paramsDist[1] > 0 && paramsDist[2] > 0;
+        public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => GA1(_random);
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Gamma(paramsDist[0], paramsDist[1], paramsDist[2], _random) : null;
         public Vectors? Generate((int, int) shape, Vectors paramsDist) 
@@ -382,9 +425,9 @@
             return result;
         }
         public static double Generate(in Random rand) => GA1(rand);
-        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParamsDist(paramsDist) ? Gamma(paramsDist[0], paramsDist[1], paramsDist[2], rand) : null;
+        public static double? Generate(Vectors paramsDist, in Random rand) => CheckParams(paramsDist) ? Gamma(paramsDist[0], paramsDist[1], paramsDist[2], rand) : null;
         public static Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand) {
-            if (!CheckParamsDist(paramsDist)) return null;
+            if (!CheckParams(paramsDist)) return null;
             var result = Vectors.InitVectors(shape);
             for (var i = 0; i < shape.Item1; i++)
                 for (var j = 0; j < shape.Item2; j++)
@@ -409,6 +452,13 @@
 
         public static Vectors Generate((int, int) shape, (double, double)[] intervals, in Random rand)
         {
+            if (intervals.Length == 1) {
+                (double, double)[] intervalsObservations = new (double, double)[shape.Item2];
+                for (int i = 0; i < shape.Item2; i++)
+                    intervalsObservations[i] = intervals[0];
+                intervals = intervalsObservations;
+            }
+            
             if (intervals.Length != shape.Item2)
                 throw new ArgumentException("Количество элементов в Intervals должно совпадать с количеством столбцов");
 
