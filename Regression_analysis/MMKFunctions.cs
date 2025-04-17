@@ -1,5 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 
+using MathNet.Numerics;
+
 namespace Regression_analysis
 {
     public delegate double LogLikelihoodFunction( IModel model, Vectors @params, Vectors[] parametrs);
@@ -9,6 +11,7 @@ namespace Regression_analysis
     public interface IMMKFunction {
         string Name { get; }
         LogLikelihoodFunction LogLikelihood { get; }
+        LogLikelihoodFunction LogLikelihoodFull { get; }
         LogLikelihoodGradient? Gradient { get; }
         LogLikelihoodGessian? Gessian { get; }
         public static Vectors ComputeResiduals(in IModel model, in Vectors theta, in Vectors[] @params, double loc = 0.0) 
@@ -53,12 +56,11 @@ namespace Regression_analysis
 
             double residuals = 0.0;
             double scaleSq = paramsDist[1] * paramsDist[1];
-            double logscale = Math.Log(scaleSq);
             double funcVector;
             for (var i = 0; i < y.Size; i++)
             {
                 funcVector = y[i] - (model.VectorFunc(Vectors.GetRow(x, i)) & theta)[0] - paramsDist[0];
-                residuals += Math.Log(scaleSq + funcVector * funcVector) - logscale;
+                residuals += double.Log(scaleSq + funcVector * funcVector);
             }
             return residuals;
         };
@@ -104,6 +106,24 @@ namespace Regression_analysis
             return residuals;
         };
 
+        public LogLikelihoodFunction LogLikelihoodFull => (model, theta, @params) =>
+        {
+            var paramsDist = @params[0];
+            var x = @params[1];
+            var y = @params[2];
+            theta = theta.T();
+
+            double residuals = 0.0;
+            double scaleSq = paramsDist[1] * paramsDist[1];
+            double logscale = double.Log(paramsDist[1] / double.Pi);
+            double funcVector;
+            for (var i = 0; i < y.Size; i++)
+            {
+                funcVector = y[i] - (model.VectorFunc(Vectors.GetRow(x, i)) & theta)[0] - paramsDist[0];
+                residuals += double.Log(scaleSq + funcVector * funcVector);
+            }
+            return residuals - logscale * y.Size;
+        };
 
         public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params) 
         {
@@ -133,7 +153,7 @@ namespace Regression_analysis
             {
                 funcVector = y[i] - (model.VectorFunc(Vectors.GetRow(x, i)) & theta)[0] - paramsDist[0];
                 residuals += funcVector;
-                penaity += double.Max(0, -funcVector);
+                penaity += double.Max(0, -funcVector) * 1e+6;
             }
             return residuals / @paramsDist[1] + penaity;
         };
@@ -157,6 +177,23 @@ namespace Regression_analysis
         };
 
         public LogLikelihoodGessian? Gessian => null;
+
+        public LogLikelihoodFunction LogLikelihoodFull => (model, theta, @params) =>
+        {
+            var paramsDist = @params[0];
+            var x = @params[1];
+            var y = @params[2];
+            theta = theta.T();
+            double residuals = 0.0;
+
+            double funcVector;
+            for (var i = 0; i < y.Size; i++)
+            {
+                funcVector = y[i] - (model.VectorFunc(Vectors.GetRow(x, i)) & theta)[0] - paramsDist[0];
+                residuals += funcVector;
+            }
+            return residuals / @paramsDist[1] + y.Size * double.Log(paramsDist[1]);
+        };
 
         public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params) 
         { 
@@ -209,6 +246,24 @@ namespace Regression_analysis
         };
 
         public LogLikelihoodGessian? Gessian => null;
+
+        public LogLikelihoodFunction LogLikelihoodFull => (model, theta, @params) =>
+        {
+            var paramsDist = @params[0];
+            var x = @params[1];
+            var y = @params[2];
+            theta = theta.T();
+            double residuals = 0.0;
+
+            Vectors funcVector;
+            for (var i = 0; i < y.Size; i++)
+            {
+                funcVector = model.VectorFunc(Vectors.GetRow(x, i));
+                residuals += double.Abs(y[i] - (funcVector & theta)[0] - paramsDist[0]);
+            }
+
+            return paramsDist[1] * residuals - y.Size * double.Log(paramsDist[1] / 2);
+        };
 
         public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params) 
         { 
@@ -287,6 +342,25 @@ namespace Regression_analysis
             return (paramsDist[2] - 1) * residuals;
         };
 
+        public LogLikelihoodFunction LogLikelihoodFull => (model, theta, @params) =>
+        {
+            var paramsDist = @params[0];
+            var x = @params[1];
+            var y = @params[2];
+            theta = theta.T();
+
+            double residuals = 0.0;
+
+            double funcVector;
+            for (var i = 0; i < y.Size; i++)
+            {
+                funcVector = y[i] - (model.VectorFunc(Vectors.GetRow(x, i)) & theta)[0] - paramsDist[0];
+                residuals -= (paramsDist[2] - 1) * double.Log(double.Max(1e-14, funcVector)) - funcVector / paramsDist[1];
+            }
+
+            return residuals + y.Size * (double.Log(SpecialFunctions.Gamma(paramsDist[2])) + paramsDist[2] * double.Log(paramsDist[1]));
+        };
+
         public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params) 
         {
             var residians = IMMKFunction.ComputeResiduals(model, theta, @params);
@@ -332,6 +406,29 @@ namespace Regression_analysis
         public LogLikelihoodGradient? Gradient => null;
 
         public LogLikelihoodGessian? Gessian => null;
+
+        public LogLikelihoodFunction LogLikelihoodFull => (model, theta, @params) =>
+        {
+            var paramsDist = @params[0];
+            var x = @params[1];
+            var y = @params[2];
+            theta = theta.T();
+
+            double maxEps = double.MinValue;
+            double minEps = double.MaxValue;
+
+            double funcVector;
+            var n = y.Size;
+            for (var i = 0; i < n; i++)
+            {
+                funcVector = y[i] - (model.VectorFunc(Vectors.GetRow(x, i)) & theta)[0];
+                if (funcVector > maxEps)
+                    maxEps = funcVector;
+                if (funcVector < minEps)
+                    minEps = funcVector;
+            }
+            return double.Log(maxEps - minEps);
+        };
 
         public Vectors? UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params) => null;
     }
@@ -388,6 +485,25 @@ namespace Regression_analysis
 
             var matrixX = model.CreateMatrixX(x);
             return -(matrixX.T() & matrixX) / double.Pow(paramsDist[1], 2);
+        };
+
+        public LogLikelihoodFunction LogLikelihoodFull => (model, theta, @params) =>
+        {
+            var paramsDist = @params[0];
+            var x = @params[1];
+            var y = @params[2];
+            theta = theta.T();
+
+            double residuals = 0.0;
+
+            double funcVector;
+            for (var i = 0; i < y.Size; i++)
+            {
+                funcVector = y[i] - (model.VectorFunc(Vectors.GetRow(x, i)) & theta)[0] - paramsDist[0];
+                residuals -= double.Pow(funcVector, 2);
+            }
+
+            return residuals / (2 * double.Pow(paramsDist[1], 2)) + y.Size * (double.Log(2 * double.Pi) / 2 + double.Log(paramsDist[1]));
         };
 
         public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params) 

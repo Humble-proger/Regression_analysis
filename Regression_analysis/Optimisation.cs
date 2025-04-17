@@ -249,6 +249,7 @@ namespace Regression_analysis
                 }
                 Console.WriteLine(result.NumberRebounds);
                 Console.WriteLine(resMethod.Norm);
+                Console.WriteLine(resMethod.MinPoint);
             }
             return result;
         }
@@ -412,7 +413,7 @@ namespace Regression_analysis
         public double Alpha { get; set; } = 1.0;
         public double Beta { get; set; } = 0.5;
         public double Gamma { get; set; } = 2.0;
-        public double t { get; set; } = 1.0;
+        public double T { get; set; } = 1.0;
 
         public OptRes Optimisate(
             LogLikelihoodFunction func,
@@ -440,7 +441,7 @@ namespace Regression_analysis
                 throw new ArgumentException("Dimension must be at least 2");
 
             // Инициализация симплекса (каждый СТОЛБЕЦ D — вершина размерности N)
-            Vectors d = InitializeSimplex(x0, n, t);
+            Vectors d = InitializeSimplex(x0, n, T);
             Vectors resF = EvaluateSimplex(func, ref model, ref @params, d, ref result.CountCalcFunc);
 
             while (result.NumIteration < maxIter)

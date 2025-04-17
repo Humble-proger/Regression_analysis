@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Collections.Generic;
+using System.Text;
 
 namespace Regression_analysis
 {
@@ -228,6 +229,25 @@ namespace Regression_analysis
             }
 
             return index;
+        }
+
+        
+        public void ShaffleRows(Random rand) 
+        {
+            int n = Shape.Item1, k;
+            while (n > 1)
+            {
+                n--;
+                k = rand.Next(n + 1);
+                if (_transposes)
+                {
+                    for (int i = 0; i < Shape.Item2; i++)
+                        (this._values[i][n], this._values[i][k]) = (this._values[i][k], this._values[i][n]);
+                }
+                else {
+                    (this._values[n], this._values[k]) = (this._values[k], this._values[n]);
+                }
+            }
         }
 
         public static double NormDifference(Vectors vec, double minValue)

@@ -92,7 +92,10 @@ namespace Regression_analysis
                         Vectors.Zeros((1, model.CountRegressor)),
                         otherParameters,
                         Config.Tolerance
-                        ).MinPoint;
+                        ).MinPoint
+                    ;
+
+
             }
         }
     }
@@ -232,11 +235,20 @@ namespace Regression_analysis
     public static class Test {
         public static void Main(string[] args) {
             string h = "H0";
-            var n = 80;
+            var n = 1000;
             var thetaH0 = new Vectors([5, 0, 0, 0]);
-            var valueH1 = 1.0 / n;
+            var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n)) ;
             var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
             var paramDistribution = new Vectors([0, 30]);
+            Vectors planX = new Vectors([[-1, -1, -1], 
+                                        [1, -1, -1],
+                                        [-1, 1, -1],
+                                        [1, 1, -1],
+                                        [-1, -1, 1],
+                                        [1, -1, 1],
+                                        [-1, 1, 1],
+                                        [1, 1, 1]]);
+            Vectors planP = Vectors.Ones((1,8)) / 8;
             int seed = 8745;
             if (h == "H0")
             {
@@ -251,22 +263,24 @@ namespace Regression_analysis
                             thetaH0,
                             true
                         ),
-                        evolution: new MNKEstimator(),
+                        evolution: new MMKEstimator( MMKConfigLoader.Uniform()),
                         countIteration: 10000,
                         countObservations: n,
-                        errorDist: new CauchyDistribution(),
+                        errorDist: new UniformDistribution(),
                         paramsDist: paramDistribution,
                         debug: true,
                         parallel: true,
                         isRound: false,
-                        roundDecimals: 4
+                        planX: planX,
+                        planP: planP,
+                        roundDecimals: 5
                         //seed: seed
                     );
                 clock.Stop();
                 Console.WriteLine();
                 Console.WriteLine(clock.ElapsedMilliseconds);
                 Console.WriteLine("Готово!");
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H0_MMKCauchy{n}_o4.dat"), title: "H0 " + statistic.ToString());
+                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H0_MMPUniform{n}.dat"), title: "H0 " + statistic.ToString());
             }
             else if (h == "H1") 
             {
@@ -281,10 +295,11 @@ namespace Regression_analysis
                             thetaH1,
                             true
                         ),
-                        evolution: new MMKEstimator( MMKConfigLoader.Cauchy() ),
+                        evolution: new MMKEstimator(MMKConfigLoader.Laplace()),
                         countIteration: 2000,
                         countObservations: n,
-                        errorDist: new CauchyDistribution(),
+                        
+                        errorDist: new LaplaceDistribution(),
                         paramsDist: paramDistribution,
                         debug: true,
                         parallel: true,
@@ -294,7 +309,7 @@ namespace Regression_analysis
                 Console.WriteLine();
                 Console.WriteLine(clock.ElapsedMilliseconds);
                 Console.WriteLine("Готово!");
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H1_MMKCauchy{n}.dat"), title: "H1 " + statistic.ToString());
+                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H1_MMKLaplace{n}_lr.dat"), title: "H1 " + statistic.ToString());
             }   
         }
     }
