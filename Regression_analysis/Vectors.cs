@@ -70,25 +70,47 @@ namespace Regression_analysis
 
         public double Variance(double? mean = null) 
         { 
-            mean ??= this.Mean();
             double variance = 0.0;
-            for (int i = 0; i < Shape.Item1; i++) {
-                for (int j = 0; j < Shape.Item2; j++) {
-                    variance += double.Pow(this[i, j] - (double) mean, 2);
+            if (mean is null) {
+                for (int i = 0; i < Shape.Item1; i++)
+                {
+                    for (int j = 0; j < Shape.Item2; j++)
+                    {
+                        variance += double.Pow(this[i, j], 2);
+                    }
+                }
+            }
+            else {
+                for (int i = 0; i < Shape.Item1; i++)
+                {
+                    for (int j = 0; j < Shape.Item2; j++)
+                    {
+                        variance += double.Pow(this[i, j] - (double) mean, 2);
+                    }
                 }
             }
             return variance / Size;
         }
 
         public static double Variance(Vectors vectors, double? mean = null) 
-        { 
-            mean ??= Vectors.Mean(vectors);
+        {
             double variance = 0.0;
-            for (int i = 0; i < vectors.Shape.Item1; i++)
-            {
-                for (int j = 0; j < vectors.Shape.Item2; j++)
+            if (mean is null) {
+                for (int i = 0; i < vectors.Shape.Item1; i++)
                 {
-                    variance += double.Pow(vectors[i, j] - (double) mean, 2);
+                    for (int j = 0; j < vectors.Shape.Item2; j++)
+                    {
+                        variance += double.Pow(vectors[i, j], 2);
+                    }
+                }
+            }
+            else {
+                for (int i = 0; i < vectors.Shape.Item1; i++)
+                {
+                    for (int j = 0; j < vectors.Shape.Item2; j++)
+                    {
+                        variance += double.Pow(vectors[i, j] - (double) mean, 2);
+                    }
                 }
             }
             return variance / vectors.Size;

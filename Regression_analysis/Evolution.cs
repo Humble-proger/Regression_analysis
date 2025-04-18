@@ -240,6 +240,7 @@ namespace Regression_analysis
             var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n)) ;
             var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
             var paramDistribution = new Vectors([0, 30]);
+            int numparam = 0;
             Vectors planX = new Vectors([[-1, -1, -1], 
                                         [1, -1, -1],
                                         [-1, 1, -1],
@@ -254,7 +255,7 @@ namespace Regression_analysis
             {
                 var clock = new Stopwatch();
                 clock.Start();
-                var statistic = RegressionEvaluator.Fit
+                var statistic = RegressionEvaluator.FitParameters
                     (
                         model: new LiniarModel
                         (
@@ -263,13 +264,14 @@ namespace Regression_analysis
                             thetaH0,
                             true
                         ),
-                        evolution: new MMKEstimator( MMKConfigLoader.Uniform()),
+                        evolution: new MNKEstimator(),
                         countIteration: 10000,
                         countObservations: n,
-                        errorDist: new UniformDistribution(),
+                        numberParametr: numparam,
+                        errorDist: new NormalDistribution(),
                         paramsDist: paramDistribution,
                         debug: true,
-                        parallel: true,
+                        parallel: false,
                         isRound: false,
                         planX: planX,
                         planP: planP,
@@ -280,7 +282,7 @@ namespace Regression_analysis
                 Console.WriteLine();
                 Console.WriteLine(clock.ElapsedMilliseconds);
                 Console.WriteLine("Готово!");
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H0_MMPUniform{n}.dat"), title: "H0 " + statistic.ToString());
+                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/puma/Program/RA/ОР/Samples/H0_Parameters_{numparam}_MNKNormal{n}.dat"), title: "H0 " + statistic.ToString());
             }
             else if (h == "H1") 
             {
