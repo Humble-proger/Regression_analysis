@@ -235,7 +235,7 @@ namespace Regression_analysis
     public static class Test {
         public static void Main(string[] args) {
             string h = "H0";
-            var n = 1000;
+            var n = 20;
             var thetaH0 = new Vectors([5, 0, 0, 0]);
             var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n)) ;
             var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
@@ -271,7 +271,7 @@ namespace Regression_analysis
                         errorDist: new NormalDistribution(),
                         paramsDist: paramDistribution,
                         debug: true,
-                        parallel: false,
+                        parallel: true,
                         isRound: false,
                         planX: planX,
                         planP: planP,
@@ -282,7 +282,7 @@ namespace Regression_analysis
                 Console.WriteLine();
                 Console.WriteLine(clock.ElapsedMilliseconds);
                 Console.WriteLine("Готово!");
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/puma/Program/RA/ОР/Samples/H0_Parameters_{numparam}_MNKNormal{n}.dat"), title: "H0 " + statistic.ToString());
+                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/zodiac/RA/ОР/Samples/H0_Parameters_{numparam}_MNKNormal{n}.dat"), title: "H0 " + statistic.ToString());
             }
             else if (h == "H1") 
             {

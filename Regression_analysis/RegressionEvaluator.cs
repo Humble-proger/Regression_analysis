@@ -125,7 +125,7 @@ namespace Regression_analysis
                     }
                 }
 
-
+                Console.WriteLine("Промежутки построены успешно");
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
@@ -185,21 +185,17 @@ namespace Regression_analysis
                         a = ab[0][i]; b = ab[1][i];
                         if (a > b)
                             (a, b) = (b, a);
-
                         x = LinespaceRandom.Generate((countObservations, model.CountFacts), [(a, b)], generator);
-
                         matrixX = model.CreateMatrixX(x);
-
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 
                         vectorE = errorDist.Generate((1, countObservations), paramsDist);
-
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 
 
 
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-
+                        
                         y = (matrixX & model.TrueTheta.T()).T() + vectorE;
                         if (isRound && roundDecimals is not null)
                             y = RoundVector(y, (int) roundDecimals);
@@ -207,21 +203,18 @@ namespace Regression_analysis
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-                        
                         statistics[i] = calcTheta[numberParametr];
-
                         if (debug)
 
                         {
 
                             avg_stat += (calcTheta[numberParametr] - avg_stat) / (i + 1);
-
                             avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (i + 1);
 
                             progress.Add(i, "Получение статистик SRE", FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
 
                             Console.ResetColor();
-
+                            Console.Out.Flush();
                         }
                     }
                 }
@@ -234,7 +227,6 @@ namespace Regression_analysis
                 x = GenerateXFromPlan(planX, planP, countObservations, generator);
                 matrixX = model.CreateMatrixX(x);
                 Vectors u = (matrixX & model.TrueTheta.T()).T();
-                double avg_var = 0.0;
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
@@ -252,7 +244,6 @@ namespace Regression_analysis
                                 y = RoundVector(y, (int) roundDecimals);
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-
                             statistics[i] = calcTheta[numberParametr];
                             if (debug)
                             {
@@ -262,7 +253,6 @@ namespace Regression_analysis
                                     //avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (iter + 1);
 
                                     Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {calcTheta[numberParametr]}, Theta: {calcTheta}"));
-
                                     // Обновление прогресс-бара требует синхронизации
                                     //progress.Add(iter, "Получение статистик SRE",
                                     //  FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
@@ -292,7 +282,6 @@ namespace Regression_analysis
                         
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
                         residuals = y - (matrixX & calcTheta.T()).T();
-                        avg_var += (residuals.Variance(residuals.Mean()) - avg_var) / (i + 1);
                         statistics[i] = calcTheta[numberParametr];
 
                         if (debug)
@@ -309,10 +298,6 @@ namespace Regression_analysis
 
                         }
                     }
-                    Console.WriteLine();
-                    Console.WriteLine(avg_var);
-                    matrixX = model.CreateMatrixX(x);
-                    Console.WriteLine(avg_var * Vectors.Inv(matrixX.T() & matrixX));
                 }
             }
             return new ResultEvalueator() { Statistics = new Vectors(statistics), CountObservarions = countObservations, Distribution = errorDist.Name, ParametersDistribution = paramsDist, IsRound = isRound, RoundDecimals = roundDecimals};

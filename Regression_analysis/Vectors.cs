@@ -674,13 +674,6 @@ namespace Regression_analysis
             if (this.Size > 0)
             {
                 StringBuilder sb = new();
-                if (this.IsVector()) {
-                    sb.Append($"[ {this[0].ToString("E2")}");
-                    for (int i = 1; i < Size; i++)
-                        sb.Append($" {this[i].ToString("E2")}");
-                    sb.Append(" ]");
-                    return sb.ToString();
-                }
                 for (int i = 0; i < this.Shape.Item1; i++)
                 {
                     sb.Append($"[ {this[i, 0].ToString("E2")}");
