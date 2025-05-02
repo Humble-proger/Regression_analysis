@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
 
 namespace Regression_analysis
 {
@@ -74,6 +76,20 @@ namespace Regression_analysis
             }
             else 
             {
+                Vectors initParams;
+                try {
+                    var matrixX = model.CreateMatrixX(otherParameters[1]);
+                    var tMatrixX = matrixX.T();
+                    var mean = Config.Mean(otherParameters[0]);
+                    initParams =  mean is null 
+                        ? (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & otherParameters[2].T()
+                        : (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & (otherParameters[2] - (double) mean).T();
+                }
+                catch
+                {
+                    throw new Exception("Не правильные данные");
+                }
+
                 return Config.IsMultiIterationOptimisation
                     ? Config.Oprimizator.OptimisateRandomInit(
                         Config.Functions.LogLikelihood,
@@ -83,15 +99,17 @@ namespace Regression_analysis
                         (1, model.CountRegressor),
                         Config.Tolerance,
                         maxIter: Config.MaxIteration,
-                        seed: Config.Seed
+                        seed: Config.Seed,
+                        x0: initParams.T()
                         ).MinPoint
                     : Config.Oprimizator.Optimisate(
                         Config.Functions.LogLikelihood,
                         Config.Functions.Gradient,
                         model,
-                        Vectors.Zeros((1, model.CountRegressor)),
+                        initParams.T(),
                         otherParameters,
-                        Config.Tolerance
+                        Config.Tolerance,
+                        maxIter: Config.MaxIteration
                         ).MinPoint
                     ;
 
@@ -115,7 +133,7 @@ namespace Regression_analysis
             {
                 Functions = new NormalMMKDistribution(),
                 Oprimizator = new DFPOptimizator(),
-                TypeDisribution = TypeDisribution.Normal,
+                Mean = NormalDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
                 MaxAttempts = maxattepts,
                 Tolerance = tol,
@@ -136,12 +154,12 @@ namespace Regression_analysis
             {
                 Functions = new ExponentialMMKDistribution(),
                 Oprimizator = new NelderMeadOptimizator(),
-                TypeDisribution = TypeDisribution.Exponential,
+                Mean = ExponentialDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
                 MaxAttempts = maxattepts,
                 Tolerance = tol,
                 MaxIteration= maxiteration,
-                Seed = seed
+                Seed = seed,
             };
         }
 
@@ -158,7 +176,7 @@ namespace Regression_analysis
             {
                 Functions = new LaplaceMMKDistribution(),
                 Oprimizator = new NelderMeadOptimizator(),
-                TypeDisribution = TypeDisribution.Laplace,
+                Mean = LaplaceDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
                 MaxAttempts = maxattepts,
                 Tolerance = tol,
@@ -179,7 +197,7 @@ namespace Regression_analysis
             {
                 Functions = new CauchyMMKDistribution(),
                 Oprimizator = new NelderMeadOptimizator(),
-                TypeDisribution = TypeDisribution.Cauchy,
+                Mean = CauchyDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
                 MaxAttempts = maxattepts,
                 Tolerance = tol,
@@ -201,7 +219,7 @@ namespace Regression_analysis
             {
                 Functions = new GammaMMKDistribution(),
                 Oprimizator = new NelderMeadOptimizator(),
-                TypeDisribution = TypeDisribution.Gamma,
+                Mean = GammaDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
                 MaxAttempts = maxattepts,
                 Tolerance = tol,
@@ -222,7 +240,7 @@ namespace Regression_analysis
             {
                 Functions = new UniformMMKDistribution(),
                 Oprimizator = new NelderMeadOptimizator(),
-                TypeDisribution = TypeDisribution.Uniform,
+                Mean = UniformDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
                 MaxAttempts = maxattepts,
                 Tolerance = tol,
@@ -234,14 +252,19 @@ namespace Regression_analysis
 
     public static class Test {
         public static void Main(string[] args) {
+            
             string h = "H0";
-            var n = 20;
+            var n = 5000;
             var thetaH0 = new Vectors([5, 0, 0, 0]);
             var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n)) ;
             var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
-            var paramDistribution = new Vectors([0, 30]);
-            int numparam = 0;
-            Vectors planX = new Vectors([[-1, -1, -1], 
+            var paramDistribution = new Vectors([0, 30, 10]);
+            int numparam = 1;
+
+            //var e = LaplaceDistribution.Generate((1, 10000), paramDistribution, new Random());
+            //e.SaveToDAT($"D:/Program/Budancev/ОР/Samples/Laplace.dat", "Laplace (0, 30)");
+            
+            Vectors planX = new Vectors([[-1, -1, -1],
                                         [1, -1, -1],
                                         [-1, 1, -1],
                                         [1, 1, -1],
@@ -249,13 +272,55 @@ namespace Regression_analysis
                                         [1, -1, 1],
                                         [-1, 1, 1],
                                         [1, 1, 1]]);
-            Vectors planP = Vectors.Ones((1,8)) / 8;
+            Vectors planP = Vectors.Ones((1, 8)) / 8;
+            planX = planX * 1e+3;
+
+            var model = new LiniarModel
+                        (
+                            3,
+                            [],
+                            thetaH0,
+                            true
+                        );
+
+            var rand = new Random();
+            //var opt = new NelderMeadOptimizator();
+            //var func = new LaplaceMMKDistribution();
+            var X = LinespaceRandom.Generate((n, model.CountFacts), [(-1e+4, 1e+4)], rand);
+            //var X = RegressionEvaluator.GenerateXFromPlan(planX, planP, n, rand);
+            var error = new GammaDistribution();
+            var e = error.Generate((1, n), paramDistribution);
+
+            var y = (model.CreateMatrixX(X) & model.TrueTheta.T()).T() + e;
+
+            var res = ComparisonMethods.Compare(
+                    model,
+                    new MNKEstimator(),
+                    new MMKEstimator(MMKConfigLoader.Gamma(ismultiiteration: false, maxiteration: 5000)),
+                    [paramDistribution, X, y]
+
+                );
+            
+            string json = JsonSerializer.Serialize(res, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true});
+            File.WriteAllText($"D:/Program/Budancev/ОР/Samples/CompareMethods_Gamma_{n}.json", json);
+            Console.WriteLine(json);
+            /*
+            Vectors planX = new Vectors([[-1, -1, -1],
+                                        [1, -1, -1],
+                                        [-1, 1, -1],
+                                        [1, 1, -1],
+                                        [-1, -1, 1],
+                                        [1, -1, 1],
+                                        [-1, 1, 1],
+                                        [1, 1, 1]]);
+            Vectors planP = Vectors.Ones((1, 8)) / 8;
+            planX *= 1e+4;
             int seed = 8745;
             if (h == "H0")
             {
                 var clock = new Stopwatch();
                 clock.Start();
-                var statistic = RegressionEvaluator.FitParameters
+                var statistic = RegressionEvaluator.Fit
                     (
                         model: new LiniarModel
                         (
@@ -264,11 +329,12 @@ namespace Regression_analysis
                             thetaH0,
                             true
                         ),
-                        evolution: new MNKEstimator(),
+                        evolution: new MMKEstimator(MMKConfigLoader.Laplace(ismultiiteration: false, maxiteration: 5000)),
+                        //evolution: new MNKEstimator(),
                         countIteration: 10000,
                         countObservations: n,
-                        numberParametr: numparam,
-                        errorDist: new NormalDistribution(),
+                        //numberParametr: numparam,
+                        errorDist: new LaplaceDistribution(),
                         paramsDist: paramDistribution,
                         debug: true,
                         parallel: true,
@@ -276,13 +342,14 @@ namespace Regression_analysis
                         planX: planX,
                         planP: planP,
                         roundDecimals: 5
-                        //seed: seed
+                    //seed: seed
                     );
                 clock.Stop();
                 Console.WriteLine();
                 Console.WriteLine(clock.ElapsedMilliseconds);
                 Console.WriteLine("Готово!");
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/zodiac/RA/ОР/Samples/H0_Parameters_{numparam}_MNKNormal{n}.dat"), title: "H0 " + statistic.ToString());
+                //statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:/Program/Budancev/ОР/Samples/H0_Parameters_{numparam}_MMPLaplace{n}.dat"), title: "H0 " + statistic.ToString());
+                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H0_MMKLaplace{n}.dat"), title: "H0 " + statistic.ToString());
             }
             else if (h == "H1") 
             {
@@ -312,7 +379,9 @@ namespace Regression_analysis
                 Console.WriteLine(clock.ElapsedMilliseconds);
                 Console.WriteLine("Готово!");
                 statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H1_MMKLaplace{n}_lr.dat"), title: "H1 " + statistic.ToString());
-            }   
+                
+            }
+            */
         }
     }
 }

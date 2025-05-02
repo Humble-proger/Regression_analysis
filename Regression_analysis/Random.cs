@@ -5,8 +5,8 @@ namespace Regression_analysis
 {
     internal static class MathConstants
     {
-        public const double Sqrt2 = 1.4142135623730951;
-        public const double Sqrt3 = 1.7320508075688772;
+        public const double Sqrt2 = 1.4142135623730950;
+        public const double Sqrt3 = 1.7320508075688773;
     }
 
     public enum TypeDisribution {
@@ -30,6 +30,9 @@ namespace Regression_analysis
         public double? Generate(Vectors paramsDist);
         public Vectors? Generate((int, int) shape, Vectors paramsDist);
         public bool CheckParamsDist(Vectors paramsDist);
+
+        public abstract static Moment Mean { get; }
+        public abstract static Moment Var { get; }
     }
 
     public class UniformDistribution(int? seed = null) : IRandomDistribution
@@ -70,6 +73,9 @@ namespace Regression_analysis
                     vec[i, j] = Uniform(paramsDist[0], paramsDist[1], rand);
             return vec;
         }
+
+        public static Moment Mean => (paramDist) => (paramDist[1] - paramDist[0]) / 2;
+        public static Moment Var => (paramDist) => double.Pow(paramDist[1] - paramDist[0], 2) / 12;
     }
 
     public class ExponentialDistribution(int? seed = null) : IRandomDistribution {
@@ -103,6 +109,9 @@ namespace Regression_analysis
                     result[i, j] = Exponential(paramsDist[0], paramsDist[1], rand.NextDouble());
             return result;
         }
+
+        public static Moment Mean => (paramDist) => paramDist[1] + paramDist[0];
+        public static Moment Var => (paramDist) => paramDist[1] * paramDist[1];
     }
 
     public class LaplaceDistribution(int? seed = null) : IRandomDistribution
@@ -113,7 +122,17 @@ namespace Regression_analysis
         public string Name => "Лапласа";
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
-        private static double Laplace(double loc, double scale, in Random rand) => loc - double.Sign(-1 + rand.NextDouble() * 2) * Math.Log(1 - rand.NextDouble()) * scale;
+        private static double Laplace(double loc, double scale, in Random rand) {
+            var u = rand.NextDouble();
+            if (u < 0.5)
+            {
+                return loc + scale * double.Log(2 * u);
+            }
+            else if (u > 0.5) {
+                return loc - scale * double.Log(2 * (1 - u));
+            }
+            return loc;
+        }
         private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
         public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Laplace(0, 1, _random);
@@ -137,7 +156,8 @@ namespace Regression_analysis
             return result;
         }
 
-        
+        public static Moment Mean => (paramDist) => paramDist[0];
+        public static Moment Var => (paramDist) => 2 * paramDist[1] * paramDist[1];
     }
 
     public class CauchyDistribution(int? seed = null) : IRandomDistribution
@@ -173,6 +193,10 @@ namespace Regression_analysis
                     result[i, j] = Cauchy(paramsDist[0], paramsDist[1], rand.NextDouble());
             return result;
         }
+
+        public static Moment Mean => (paramDist) => null;
+        public static Moment Var => (paramDist) => null;
+
     }
 
     public class NormalDistribution(int? seed = null) : IRandomDistribution
@@ -282,6 +306,10 @@ namespace Regression_analysis
             }
             return result;
         }
+
+        public static Moment Mean => (paramDist) => paramDist[0];
+        public static Moment Var => (paramDist) => paramDist[1] * paramDist[1];
+
     }
 
     public class GammaDistribution(int? seed = null) : IRandomDistribution 
@@ -385,12 +413,37 @@ namespace Regression_analysis
                     u = rand.NextDouble();
                     s = 0.5 * e1 * e1;
                     if (e1 > 0)
-                        if (u < 1 - gamma_constats[5] * s) return result;
-                        else if (u < 1 + gamma_constats[5] * gamma_constats[6] * e1 - gamma_constats[5]) return result;
-                    if (Math.Log(u) < gamma_constats[0] * Math.Log(result / gamma_constats[0]) + gamma_constats[0] - result + s) return result;
+                    {
+                        if (u < (1 - gamma_constats[5] * s)) 
+                            return result;
+                    }
+                    else if (u < (1 + s * (gamma_constats[6] * e1 - gamma_constats[5]))) 
+                        return result;
+                    if (Math.Log(u) < (gamma_constats[0] * Math.Log(result / gamma_constats[0]) + gamma_constats[0] - result + s)) 
+                        return result;
                 }
             } while (++iter < 1e9);
-            throw new Exception("Failed to calculate GO");
+            return double.NaN;
+            //throw new Exception("Failed to calculate GO");
+        }
+        private static double MAT(in Random rand, double k) {
+            double d = k - 1.0 / 3;
+            double c = 3 * double.Sqrt(d);
+            int iter = 0;
+            do {
+                double n;
+                do {
+                    n = Normal(rand);
+                } while (n <= -c);
+                double v = 1 + n / c;
+                v = v * v * v;
+                n *= n;
+                double u = rand.NextDouble();
+                if (u < (1.0 - 0.331 * n * n) || (double.Log(u) < (0.5 * n + d * (1.0 - v + double.Log(v)))))
+                    return d * v;
+            
+            } while (++iter <= 1e9);
+            throw new Exception("Gamma distribution: sampling failed");
         }
 
         private static double Gamma(double loc, double scale, double k, in Random rand) {
@@ -405,8 +458,9 @@ namespace Regression_analysis
                 result = GF(rand, k);
             else
             {
-                var constant = InitConstantGO(k);
-                result = GO(constant, rand);
+                //var constant = InitConstantGO(k);
+                //result = GO(constant, rand);
+                result = MAT(rand, k);
             }
             return scale * result + loc;
         }
@@ -434,6 +488,9 @@ namespace Regression_analysis
                     result[i, j] = Gamma(paramsDist[0], paramsDist[1], paramsDist[2], rand);
             return result;
         }
+
+        public static Moment Mean => (paramDist) => paramDist[0] + paramDist[1] * paramDist[2];
+        public static Moment Var => (paramDist) => paramDist[1] * paramDist[1] * paramDist[2];
     }
 
     public static class LinespaceRandom
@@ -479,6 +536,135 @@ namespace Regression_analysis
                     result[i, j] = intervals[j].Item1 + copyValues[i] * step[j];
             }
             return result;
+        }
+    }
+
+    public static class Linespace
+    {
+
+        public static Vectors Generate((int, int) shape, (double, double)[] intervals, in Random rand)
+        {
+            var x = new Vectors(GenerateGridPoints(intervals, n: shape.Item1, m: shape.Item2));
+            x.ShaffleRows(rand);
+            return x;
+        }
+
+        public static double[][] GenerateGridPoints((double start, double end)[] boundaries, int n, int m)
+        {
+            // 1. Вычисляем количество точек на ось (k)
+            int k = (int) Math.Floor(Math.Pow(n, 1.0 / m));
+            int gridPointsCount = (int) Math.Pow(k, m);
+            int remainingPoints = n - gridPointsCount;
+
+            // 2. Генерируем равномерную сетку
+            List<double[]> points = [];
+
+            var expandedBoundaries = boundaries.Length == 1
+                    ? Enumerable.Repeat(boundaries[0], m).ToArray()
+                    : boundaries;
+
+            if (k > 1)
+            {
+                double[][] gridPoints = GenerateUniformGrid(expandedBoundaries, k);
+                points.AddRange(gridPoints);
+            }
+            else
+            {
+                // Если k=1, добавляем центр (если нужно)
+                if (n > 0)
+                {
+                    double[] centerPoint;
+                    if (boundaries.Length == 1) {
+                        centerPoint = Enumerable.Repeat((boundaries[0].end + boundaries[0].start) / 2, m).ToArray();
+                    }
+                    else
+                    {
+                        centerPoint = new double[m];
+                        for (int i = 0; i < m; i++) {
+                            centerPoint[i] = (boundaries[i].end + boundaries[i].start) / 2;
+                        }
+                    }
+                    points.Add(centerPoint);
+                    remainingPoints = n - 1;
+                }
+            }
+
+            // 3. Добавляем вершины гиперкуба (с повторением при необходимости)
+            if (remainingPoints > 0)
+            {
+                double[][] vertices = GenerateHypercubeVertices(expandedBoundaries);
+
+                for (int i = 0; i < remainingPoints; i++)
+                {
+                    // Циклически выбираем вершины
+                    points.Add(vertices[i % vertices.Length]);
+                }
+            }
+
+            return [.. points];
+        }
+
+        private static double[][] GenerateUniformGrid((double start, double end)[] boundaries, int k)
+        {
+            // Генерируем точки для каждого измерения
+            double[][] axisPoints = boundaries
+                .Select(b => Enumerable.Range(0, k)
+                    .Select(i => b.start + i * (b.end - b.start) / (k - 1))
+                    .ToArray())
+                .ToArray();
+
+            // Общее количество точек (k^m)
+            int totalPoints = (int) Math.Pow(k, boundaries.Length);
+
+            // Массив для хранения всех точек
+            double[][] gridPoints = new double[totalPoints][];
+
+            // Массив индексов для перебора комбинаций
+            int[] indices = new int[boundaries.Length];
+
+            for (int i = 0; i < totalPoints; i++)
+            {
+                // Создаем новую точку
+                double[] point = new double[boundaries.Length];
+                for (int dim = 0; dim < boundaries.Length; dim++)
+                {
+                    point[dim] = axisPoints[dim][indices[dim]];
+                }
+
+                gridPoints[i] = point;
+
+                // Обновляем индексы (как в многомерном счетчике)
+                for (int dim = boundaries.Length - 1; dim >= 0; dim--)
+                {
+                    if (++indices[dim] < k)
+                    {
+                        break;
+                    }
+                    indices[dim] = 0;
+                }
+            }
+
+            return gridPoints;
+        }
+
+        private static double[][] GenerateHypercubeVertices((double min, double max)[] boundaries)
+        {
+            int m = boundaries.Length;
+            int vertexCount = (int) Math.Pow(2, m);
+            double[][] vertices = new double[vertexCount][];
+
+            for (int i = 0; i < vertexCount; i++)
+            {
+                double[] vertex = new double[m];
+                for (int dim = 0; dim < m; dim++)
+                {
+                    // Используем биты числа i для выбора min или max в каждом измерении
+                    vertex[dim] = ((i >> dim) & 1) == 0 ? boundaries[dim].min : boundaries[dim].max;
+                }
+                vertices[i] = vertex;
+            }
+
+            return vertices;
         }
     }
 }

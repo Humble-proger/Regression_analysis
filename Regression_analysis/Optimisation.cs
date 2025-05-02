@@ -26,7 +26,8 @@ namespace Regression_analysis
             double minValue = -10,
             double maxValue = 10,
             int maxIter = 100,
-            int? seed = null
+            int? seed = null,
+            Vectors? x0 = null
             );
     }
 
@@ -203,7 +204,8 @@ namespace Regression_analysis
             double minValue = -10,
             double maxValue = 10,
             int maxIter = 100,
-            int? seed = null
+            int? seed = null,
+            Vectors? x0 = null
             )
         {
             if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
@@ -352,7 +354,8 @@ namespace Regression_analysis
             double minValue = -10,
             double maxValue = 10,
             int maxIter = 100,
-            int? seed = null
+            int? seed = null,
+            Vectors? x0 = null
             )
         {
             if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
@@ -491,7 +494,6 @@ namespace Regression_analysis
                 result.Convergence = true;
             result.MinPoint = Vectors.GetColumn(d, Vectors.MinIndex(resF));
             result.MinValueFunction = func(model, result.MinPoint, @params);
-
             return result;
         }
 
@@ -505,7 +507,8 @@ namespace Regression_analysis
             double minValue = -10,
             double maxValue = 10,
             int maxIter = 100,
-            int? seed = null
+            int? seed = null,
+            Vectors? x0 = null
             )
         {
             var rand = seed == null ?  new() : (UniformDistribution) new(seed);
@@ -514,7 +517,7 @@ namespace Regression_analysis
             OptResExtended result = new()
             {
                 Tol = eps,
-                InitParametrs = Vectors.Zeros(shapeInitParam)
+                InitParametrs = x0 ?? Vectors.Zeros(shapeInitParam),
             };
             resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
             result.Convergence = resMethod.Convergence;
@@ -553,6 +556,63 @@ namespace Regression_analysis
                     result.CountCalcFunc += resMethod.CountCalcFunc;
                 }
             }
+            return result;
+        }
+
+        public OptResExtended OptimisateBestRandomInit(
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
+            IModel model,
+            Vectors[] @params,
+            (int, int) shapeInitParam,
+            double eps,
+            double minValue = -10,
+            double maxValue = 10,
+            int maxIter = 10,
+            int? seed = null
+            )
+        {
+            var rand = seed == null ? new() : (UniformDistribution) new(seed);
+            OptRes resMethod;
+            var tmp = new Vectors([minValue, maxValue]);
+            var mnkestiminator = new MNKEstimator();
+            OptResExtended result = new()
+            {
+                Tol = eps,
+                InitParametrs = mnkestiminator.EstimateParameters(model, [@params[0], @params[1], @params[2]])
+            };
+            Console.WriteLine(result.InitParametrs);
+            resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
+            result.Convergence = resMethod.Convergence;
+            result.NumIteration = resMethod.NumIteration;
+            result.NumberRebounds += 1;
+            result.Norm = resMethod.Norm;
+            result.MinValueFunction = resMethod.MinValueFunction;
+            result.MinPoint = resMethod.MinPoint;
+            result.CountCalcFunc = resMethod.CountCalcFunc;
+            Console.WriteLine(resMethod.MinPoint);
+            double maxvalue = resMethod.MinValueFunction, minvalue = resMethod.MinValueFunction;
+            Vectors initParam, minInitParam = result.InitParametrs;
+            for (; result.NumberRebounds < maxIter; result.NumberRebounds++)
+            {
+#pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+                initParam = rand.Generate(shapeInitParam, tmp);
+#pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
+                resMethod = Optimisate(func, dffunc, model, initParam, @params, eps);
+#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
+                if (resMethod.MinValueFunction < result.MinValueFunction) {
+                    result.Convergence = resMethod.Convergence;
+                    result.MinPoint = resMethod.MinPoint;
+                    result.MinValueFunction = resMethod.MinValueFunction;
+                    result.NumIteration = resMethod.NumIteration;
+                    result.Norm = resMethod.Norm;
+                    result.CountCalcFunc += resMethod.CountCalcFunc;
+                    minValue = resMethod.MinValueFunction;
+                    minInitParam = initParam;
+                }
+            }
+            Console.WriteLine($"Min: {minValue} Max: {maxvalue} MinInitParam: {minInitParam}");
             return result;
         }
 

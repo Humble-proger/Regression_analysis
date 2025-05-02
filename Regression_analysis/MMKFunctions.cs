@@ -7,6 +7,8 @@ namespace Regression_analysis
     public delegate double LogLikelihoodFunction( IModel model, Vectors @params, Vectors[] parametrs);
     public delegate Vectors LogLikelihoodGradient(IModel model, Vectors @params, Vectors[] parametrs);
     public delegate Vectors LogLikelihoodGessian(IModel model, Vectors @params, Vectors[] parametrs);
+    public delegate double? Moment(Vectors paramDist);
+
 
     public interface IMMKFunction {
         string Name { get; }
@@ -35,7 +37,7 @@ namespace Regression_analysis
         
         public required IMMKFunction Functions { get; set; }
         public required IOprimizator Oprimizator { get; set; }
-        public required TypeDisribution TypeDisribution { get; set; }
+        public required Moment Mean { get; set; }
         public bool IsMultiIterationOptimisation { get; set; } = true;
         public int MaxAttempts { get; set; } = 100;
         public double Tolerance { get; set; } = 1e-7;
@@ -215,15 +217,14 @@ namespace Regression_analysis
             var y = @params[2];
             theta = theta.T();
             double residuals = 0.0;
-
-            Vectors funcVector;
+            
             for (var i = 0; i < y.Size; i++)
             {
-                funcVector = model.VectorFunc(Vectors.GetRow(x, i));
+                Vectors funcVector = model.VectorFunc(Vectors.GetRow(x, i));
                 residuals += double.Abs(y[i] - (funcVector & theta)[0] - paramsDist[0]);
             }
 
-            return paramsDist[1] * residuals;
+            return residuals;
         };
 
         public LogLikelihoodGradient? Gradient => (model, theta, @params) =>

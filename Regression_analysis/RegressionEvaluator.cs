@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.ComponentModel.Design;
 
 namespace Regression_analysis
 {
@@ -59,7 +60,7 @@ namespace Regression_analysis
             x.ShaffleRows(rand);
             return x;
         }
-        
+
         public static ResultEvalueator FitParameters(
             IModel model,
             IParameterEstimator evolution,
@@ -74,7 +75,8 @@ namespace Regression_analysis
             int? roundDecimals = null,
             int? seed = null,
             bool debug = false,
-            bool parallel = false
+            bool parallel = false,
+            (double start, double end)[]? dimension = null
             )
         {
             var progress = new ProgressBarConsole() { CountIteration = countIteration };
@@ -83,71 +85,44 @@ namespace Regression_analysis
             double[] statistics = new double[countIteration];
             //Vectors statistics = Vectors.InitVectors((1, countIteration));
             
-            
-            var localGenerator = new ThreadLocal<Random>(() =>
-        seed is null ? new Random() : new Random((int) seed + Thread.CurrentThread.ManagedThreadId));
-            Vectors x, y, matrixX, vectorE, calcTheta;
+            Vectors x, y, u, matrixX, vectorE, calcTheta;
             double avg_norm = 0.0, avg_stat = 0.0;
             var generator = seed is null ? new Random() : new Random((int) seed);
-            
-            
+            var localGenerator = new ThreadLocal<Random>(() =>
+        seed is null ? new Random() : new Random((int) seed + Thread.CurrentThread.ManagedThreadId));
+
             int iter = 0;
             object lockObj = new object();
 
             if (!errorDist.CheckParamsDist(paramsDist)) throw new ArgumentException("Параметры закона распределения введены не верно.");
             if (planX is null)
             {
-                var interval = new Vectors([-1e+5, 1e+5]);
-                double[][] ab = new double[2][];
-                if (parallel)
-                {
-                    for (int i = 0; i < 2; i++)
-                    {
-                        ab[i] = new double[countIteration];
-                        Parallel.For(0, countIteration, j => {
-#pragma warning disable CS8629 // Тип значения, допускающего NULL, может быть NULL.
-#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-                            ab[i][j] = (double) UniformDistribution.Generate(interval, localGenerator.Value);
-#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-#pragma warning restore CS8629 // Тип значения, допускающего NULL, может быть NULL.
-                        });
+                if (dimension is null) {
+                    var g = new Vectors([-1e+5, 1e+5]);
+                    double a = (double) UniformDistribution.Generate(g, generator), b = (double) UniformDistribution.Generate(g, generator);
+                    if (a > b) {
+                        (a, b) = (b, a);
                     }
+                    dimension = [(a, b)];
                 }
-                else
-                {
-                    for (int i = 0; i < 2; i++)
-                    {
-                        ab[i] = new double[countIteration];
-                        for (int j = 0; j < countIteration; j++)
-#pragma warning disable CS8629 // Тип значения, допускающего NULL, может быть NULL.
-                            ab[i][j] = (double) UniformDistribution.Generate(interval, generator);
-#pragma warning restore CS8629 // Тип значения, допускающего NULL, может быть NULL.
-                    }
-                }
+                x = LinespaceRandom.Generate((countObservations, model.CountFacts), dimension, generator);
+                matrixX = model.CreateMatrixX(x);
+                u = (matrixX & model.TrueTheta.T()).T();
 
-                Console.WriteLine("Промежутки построены успешно");
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
                     Parallel.ForEach(rangePartitioner, range =>
                     {
-                        Vectors x, matrixX, vectorE, y, calcTheta;
-                        Vectors paramDist = Vectors.InitVectors((1, 2));
+                        Vectors vectorE, y, calcTheta;
                         for (int i = range.Item1; i < range.Item2; i++)
                         {
-                            double a = ab[0][i], b = ab[1][i];
-                            if (a > b)
-                                (a, b) = (b, a);
-                            paramDist[0] = a; paramDist[1] = b;
-                            x = LinespaceRandom.Generate((countObservations, model.CountFacts), [(a, b)], localGenerator.Value);
-                            //x = UniformDistribution.Generate((countObservations, model.CountFacts), paramDist, localGenerator.Value);
-                            matrixX = model.CreateMatrixX(x);
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-                            y = (matrixX & model.TrueTheta.T()).T() + vectorE;
+                            y = u + vectorE;
                             if (isRound && roundDecimals is not null)
                                 y = RoundVector(y, (int) roundDecimals);
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
@@ -177,26 +152,16 @@ namespace Regression_analysis
                 }
                 else
                 {
-                    double a, b;
                     for (int i = 0; i < countIteration; i++)
 
                     {
-
-                        a = ab[0][i]; b = ab[1][i];
-                        if (a > b)
-                            (a, b) = (b, a);
-                        x = LinespaceRandom.Generate((countObservations, model.CountFacts), [(a, b)], generator);
-                        matrixX = model.CreateMatrixX(x);
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
-
                         vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 
-
-
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                         
-                        y = (matrixX & model.TrueTheta.T()).T() + vectorE;
+                        y = u + vectorE;
                         if (isRound && roundDecimals is not null)
                             y = RoundVector(y, (int) roundDecimals);
 
@@ -226,7 +191,8 @@ namespace Regression_analysis
                 if (planX.Shape.Item2 != model.CountFacts) throw new ArgumentException("Число факторов в моделе не совпадает с размерностью точек плана");
                 x = GenerateXFromPlan(planX, planP, countObservations, generator);
                 matrixX = model.CreateMatrixX(x);
-                Vectors u = (matrixX & model.TrueTheta.T()).T();
+                u = (matrixX & model.TrueTheta.T()).T();
+
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
@@ -267,7 +233,6 @@ namespace Regression_analysis
                 }
                 else
                 {
-                    Vectors residuals;
                     for (int i = 0; i < countIteration; i++)
                     {
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -281,7 +246,6 @@ namespace Regression_analysis
 
                         
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-                        residuals = y - (matrixX & calcTheta.T()).T();
                         statistics[i] = calcTheta[numberParametr];
 
                         if (debug)
@@ -299,6 +263,7 @@ namespace Regression_analysis
                         }
                     }
                 }
+                Console.WriteLine(double.Sqrt(((double.Pow(paramsDist[1] - paramsDist[0], 2) / 12) * Vectors.Inv(matrixX.T() & matrixX))[0,0]));
             }
             return new ResultEvalueator() { Statistics = new Vectors(statistics), CountObservarions = countObservations, Distribution = errorDist.Name, ParametersDistribution = paramsDist, IsRound = isRound, RoundDecimals = roundDecimals};
 
@@ -318,7 +283,8 @@ namespace Regression_analysis
             int? roundDecimals = null,
             int? seed = null,
             bool debug = false,
-            bool parallel = false
+            bool parallel = false,
+            (double start, double end)[]? dimension = null
             )
         {
 
@@ -330,7 +296,7 @@ namespace Regression_analysis
             
             var localGenerator = new ThreadLocal<Random>(() =>
         seed is null ? new Random() : new Random((int) seed + Thread.CurrentThread.ManagedThreadId));
-            Vectors x, y, matrixX, vectorE, calcTheta;
+            Vectors x, y, u, matrixX, vectorE, calcTheta;
             double stat, avg_norm = 0.0, avg_stat = 0.0;
             var generator = seed is null ? new Random() : new Random((int) seed);
             
@@ -341,70 +307,40 @@ namespace Regression_analysis
             if (!errorDist.CheckParamsDist(paramsDist)) throw new ArgumentException("Параметры закона распределения введены не верно.");
             if (planX is null)
             {
-                var interval = new Vectors([-1e+5, 1e+5]);
-                double[][] ab = new double[2][];
-                if (parallel)
+                if (dimension is null)
                 {
-                    for (int i = 0; i < 2; i++)
+                    var g = new Vectors([-1e+5, 1e+5]);
+                    double a = (double) UniformDistribution.Generate(g, generator), b = (double) UniformDistribution.Generate(g, generator);
+                    if (a > b)
                     {
-                        ab[i] = new double[countIteration];
-                        Parallel.For(0, countIteration, j => {
-#pragma warning disable CS8629 // Тип значения, допускающего NULL, может быть NULL.
-#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-                            ab[i][j] = (double) UniformDistribution.Generate(interval, localGenerator.Value);
-#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-#pragma warning restore CS8629 // Тип значения, допускающего NULL, может быть NULL.
-                        });
+                        (a, b) = (b, a);
                     }
+                    dimension = [(a, b)];
                 }
-                else
-                {
-                    for (int i = 0; i < 2; i++)
-                    {
-                        ab[i] = new double[countIteration];
-                        for (int j = 0; j < countIteration; j++)
-#pragma warning disable CS8629 // Тип значения, допускающего NULL, может быть NULL.
-                            ab[i][j] = (double) UniformDistribution.Generate(interval, generator);
-#pragma warning restore CS8629 // Тип значения, допускающего NULL, может быть NULL.
-                    }
-                }
-
+                x = Linespace.Generate((countObservations, model.CountFacts), dimension, generator);
+                matrixX = model.CreateMatrixX(x);
+                u = (matrixX & model.TrueTheta.T()).T();
 
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
                     Parallel.ForEach(rangePartitioner, range =>
                     {
-                        Vectors x, matrixX, vectorE, y, calcTheta;
-                        double stat;
-                        Vectors paramDist = Vectors.InitVectors((1, 2));
+                        Vectors vectorE, y, calcTheta;
                         for (int i = range.Item1; i < range.Item2; i++)
                         {
-                            double a = ab[0][i], b = ab[1][i];
-                            if (a > b)
-                                (a, b) = (b, a);
-                            paramDist[0] = a; paramDist[1] = b;
-                            x = LinespaceRandom.Generate((countObservations, model.CountFacts), [(a, b)], localGenerator.Value);
-                            //x = UniformDistribution.Generate((countObservations, model.CountFacts), paramDist, localGenerator.Value);
-                            matrixX = model.CreateMatrixX(x);
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-                            y = (matrixX & model.TrueTheta.T()).T() + vectorE;
+                            y = u + vectorE;
                             if (isRound && roundDecimals is not null)
                                 y = RoundVector(y, (int) roundDecimals);
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-                            /*
-                       stat = evolution is MMKEstimator ev
-                           ? SREСriteriaLR.SRELR(ev.Config.Functions.LogLikelihoodFull, model, calcTheta, [paramsDist, x, y])
-                           : SREСriteria.SRE(model, calcTheta, x, y);
-                       */
-                            stat = SREСriteria.SRE(model, calcTheta, x, y);
 
-                            statistics[i] = stat;
+                            statistics[i] = SREСriteria.SRE(model, calcTheta, x, y);
                             if (debug)
                             {
                                 lock (lockObj)
@@ -412,7 +348,7 @@ namespace Regression_analysis
                                     //avg_stat += (stat - avg_stat) / (iter + 1);
                                     //avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (iter + 1);
 
-                                    Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {stat}, Theta: {calcTheta}"));
+                                    Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {statistics[i]}, Theta: {calcTheta}"));
 
                                     // Обновление прогресс-бара требует синхронизации
                                     //progress.Add(iter, "Получение статистик SRE",
@@ -428,56 +364,34 @@ namespace Regression_analysis
                 }
                 else
                 {
-                    double a, b;
                     for (int i = 0; i < countIteration; i++)
 
                     {
-
-                        a = ab[0][i]; b = ab[1][i];
-                        if (a > b)
-                            (a, b) = (b, a);
-
-                        x = LinespaceRandom.Generate((countObservations, model.CountFacts), [(a, b)], generator);
-
-                        matrixX = model.CreateMatrixX(x);
-
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
-
                         vectorE = errorDist.Generate((1, countObservations), paramsDist);
-
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
-
-
 
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 
-                        y = (matrixX & model.TrueTheta.T()).T() + vectorE;
+                        y = u + vectorE;
                         if (isRound && roundDecimals is not null)
                             y = RoundVector(y, (int) roundDecimals);
 
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-                        /*
-                        stat = evolution is MMKEstimator ev
-                            ? SREСriteriaLR.SRELR(ev.Config.Functions.LogLikelihoodFull, model, calcTheta, [paramsDist, x, y])
-                            : SREСriteria.SRE(model, calcTheta, x, y);
-                        */
-                        stat = SREСriteria.SRE(model, calcTheta, x, y);
-                        statistics[i] = stat;
-
+                        statistics[i] = SREСriteria.SRE(model, calcTheta, x, y);
                         if (debug)
 
                         {
 
-                            avg_stat += (stat - avg_stat) / (i + 1);
-
+                            avg_stat += (statistics[i] - avg_stat) / (i + 1);
                             avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (i + 1);
 
                             progress.Add(i, "Получение статистик SRE", FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
 
                             Console.ResetColor();
-
+                            Console.Out.Flush();
                         }
                     }
                 }
@@ -488,7 +402,8 @@ namespace Regression_analysis
 
                 if (planX.Shape.Item2 != model.CountFacts) throw new ArgumentException("Число факторов в моделе не совпадает с размерностью точек плана");
                 x = GenerateXFromPlan(planX, planP, countObservations, generator);
-                Vectors u = (model.CreateMatrixX(x) & model.TrueTheta.T()).T();
+                matrixX = model.CreateMatrixX(x);
+                u = (matrixX & model.TrueTheta.T()).T();
 
                 if (parallel)
                 {
@@ -496,7 +411,6 @@ namespace Regression_analysis
                     Parallel.ForEach(rangePartitioner, range =>
                     {
                         Vectors vectorE, y, calcTheta;
-                        double stat;
                         for (int i = range.Item1; i < range.Item2; i++)
                         {
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -508,13 +422,7 @@ namespace Regression_analysis
                                 y = RoundVector(y, (int) roundDecimals);
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-                            /*
-                       stat = evolution is MMKEstimator ev
-                           ? SREСriteriaLR.SRELR(ev.Config.Functions.LogLikelihoodFull, model, calcTheta, [paramsDist, x, y])
-                           : SREСriteria.SRE(model, calcTheta, x, y);
-                       */
-                            stat = SREСriteria.SRE(model, calcTheta, x, y);
-                            statistics[i] = stat;
+                            statistics[i] = SREСriteria.SRE(model, calcTheta, x, y);
                             if (debug)
                             {
                                 lock (lockObj)
@@ -522,8 +430,7 @@ namespace Regression_analysis
                                     //avg_stat += (stat - avg_stat) / (iter + 1);
                                     //avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (iter + 1);
 
-                                    Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {stat}, Theta: {calcTheta}"));
-
+                                    Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {statistics[i]}, Theta: {calcTheta}"));
                                     // Обновление прогресс-бара требует синхронизации
                                     //progress.Add(iter, "Получение статистик SRE",
                                     //  FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
@@ -549,22 +456,15 @@ namespace Regression_analysis
                             y = RoundVector(y, (int) roundDecimals);
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 
+
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-
-                        /*
-                       stat = evolution is MMKEstimator ev
-                           ? SREСriteriaLR.SRELR(ev.Config.Functions.LogLikelihoodFull, model, calcTheta, [paramsDist, x, y])
-                           : SREСriteria.SRE(model, calcTheta, x, y);
-                       */
-                        stat = SREСriteria.SRE(model, calcTheta, x, y);
-
-                        statistics[i] = stat;
+                        statistics[i] = SREСriteria.SRE(model, calcTheta, x, y);
 
                         if (debug)
 
                         {
 
-                            avg_stat += (stat - avg_stat) / (i + 1);
+                            avg_stat += (statistics[i] - avg_stat) / (i + 1);
 
                             avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (i + 1);
 
@@ -663,4 +563,39 @@ namespace Regression_analysis
             return (newTheta, newParamsDist);
         }
     }
+
+    public struct ResultCompareMethods {
+        public double[] ParamsMethod1;
+        public double[] ParamsMethod2;
+        public double[] True_Params;
+        public double[][] MatrixX;
+        public double[] Y;
+    }
+
+
+    public class ComparisonMethods {
+        public static ResultCompareMethods Compare(
+            IModel model,
+            IParameterEstimator evolution1,
+            IParameterEstimator evolution2,
+            Vectors[] parameters
+            ) 
+        {
+            var result1 = evolution1.EstimateParameters(model, parameters);
+            var result2 = evolution2.EstimateParameters(model, parameters);
+            var matrixX = model.CreateMatrixX(parameters[1]);
+            if (result1 is not null || result2 is not null) {
+                return new ResultCompareMethods
+                {
+                    ParamsMethod1 = ((Vectors) result1).ToArrayVector(),
+                    ParamsMethod2 = ((Vectors) result2).ToArrayVector(),
+                    True_Params = model.TrueTheta.ToArrayVector(),
+                    MatrixX = matrixX.ToArray(),
+                    Y = parameters[2].ToArrayVector()
+                };
+            }
+            throw new Exception("Возникли ошибки при оценивании параметров");
+        }
+    }
+
 }

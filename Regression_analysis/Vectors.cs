@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Regression_analysis
@@ -429,41 +430,29 @@ namespace Regression_analysis
         }
         public Vectors Dot(Vectors vec)
         {
-            if (this.Shape.Item2 == vec.Shape.Item1)
+            if (this.Shape.Item2 != vec.Shape.Item1)
+                throw new Exception($"Vector multiplication requires the shape to be (n, m) -> (m, k). Currently it is {this.Shape} -> {vec.Shape}.");
+
+            double[][] result = new double[this.Shape.Item1][];
+            for (int i = 0; i < this.Shape.Item1; i++)
             {
-                double[][] result = new double[this.Shape.Item1][];
-                for (int i = 0; i < this.Shape.Item1; i++)
+                result[i] = new double[vec.Shape.Item2];
+                for (int j = 0; j < vec.Shape.Item2; j++)
                 {
-                    result[i] = new double[vec.Shape.Item2];
-                    for (int j = 0; j < vec.Shape.Item2; j++)
+                    result[i][j] = 0.0;
+                    for (int k = 0; k < this.Shape.Item2; k++)
                     {
-                        result[i][j] = 0.0;
-                        for (int k = 0; k < this.Shape.Item2; k++)
-                            result[i][j] += this[i, k] * vec[k, j];
+                        result[i][j] += this[i, k] * vec[k, j];
                     }
                 }
-                return new Vectors(result);
             }
-            else throw new Exception($"Vector multiplication requires the shape to be (n, m) -> (m, k). Currently it is {this.Shape} -> {vec.Shape}.");
+            return new Vectors(result);
         }
         public Vectors Square()
         {
-            if (this.Shape.Item1 == this.Shape.Item2)
-            {
-                double[][] result = new double[this.Shape.Item1][];
-                for (int i = 0; i < this.Shape.Item1; i++)
-                {
-                    result[i] = new double[this.Shape.Item2];
-                    for (int j = 0; j < this.Shape.Item2; j++)
-                    {
-                        result[i][j] = 0;
-                        for (int k = 0; k < this.Shape.Item2; k++)
-                            result[i][j] += this[i, k] * this[k, j];
-                    }
-                }
-                return new Vectors(result);
-            }
-            else throw new Exception($"Vector multiplication requires the shape to be (n, m) -> (m, k). Currently it is {this.Shape} -> {this.Shape}.");
+            return Shape.Item1 == Shape.Item2
+                ? Dot(this)
+                : throw new Exception($"Vector multiplication requires the shape to be (n, m) -> (m, k). Currently it is {this.Shape} -> {this.Shape}.");
         }
         public static double Max(Vectors vec)
         {
@@ -504,11 +493,11 @@ namespace Regression_analysis
         }
         public static double Norm(Vectors vec)
         {
-            double summator = 0;
-            for (int i = 0; i < vec.Shape.Item1; i++)
-                for (int j = 0; j < vec.Shape.Item2; j++)
-                    summator += vec[i, j] * vec[i, j];
-            return Math.Sqrt(summator);
+            if (vec.IsVector()) {
+                double result = vec.Dot(vec.T())[0];
+                return Math.Sqrt(result);
+            }
+            throw new Exception("The argument must be a vector.");
         }
 
         public static double Power_Iteration(Vectors a, double tol = 1e-1, int max_iter = 1000)
@@ -653,8 +642,8 @@ namespace Regression_analysis
         private int GetIndex(int index, bool item2 = true)
         {
             return item2
-                ? int.Abs(index) > Shape.Item2 ? throw new Exception("Index out of range") : index < 0 ? index + Shape.Item2 : index
-                : int.Abs(index) > Shape.Item1 ? throw new Exception("Index out if range.") : index < 0 ? index + Shape.Item1 : index;
+                ? int.Abs(index) > Size ? throw new Exception("Index out of range") : index < 0 ? index + Shape.Item2 : index
+                : int.Abs(index) > Size ? throw new Exception("Index out if range.") : index < 0 ? index + Shape.Item1 : index;
         }
         public bool IsVector()
         {
@@ -662,11 +651,34 @@ namespace Regression_analysis
         }
 
         public static double Sum(Vectors vector) {
-            double summator = 0;
-            for (var i = 0; i < vector.Shape.Item1; i++)
-                for (var j = 0; j < vector.Shape.Item2; j++)
-                    summator += vector[i, j];
-            return summator;
+            double sum = 0.0;
+            double compensation = 0.0; // Коррекция ошибки
+            for (int i = 0; i < vector.Shape.Item1; i++)
+            {
+                for (int j = 0; j < vector.Shape.Item2; j++)
+                {
+                    double y = vector[i, j] - compensation;
+                    double t = sum + y;
+                    compensation = (t - sum) - y;
+                    sum = t;
+                }
+            }
+            return sum;
+        }
+
+        public double[] ToArrayVector() {
+            if (IsVector()) {
+                var result = new double[Size];
+                for (int i = 0; i < Size; i++) {
+                    result[i] = this[i];
+                }
+                return result;
+            }
+            throw new Exception("Объект не является вектором");
+        }
+
+        public double[][] ToArray() {
+            return (double[][]) _values.Clone();
         }
 
         public override string? ToString()
