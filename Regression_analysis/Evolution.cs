@@ -254,11 +254,11 @@ namespace Regression_analysis
         public static void Main(string[] args) {
             
             string h = "H0";
-            var n = 5000;
-            var thetaH0 = new Vectors([5, 0, 0, 0]);
+            var n = 1000;
+            var thetaH0 = new Vectors([5, 2, 3, 7]);
             var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n)) ;
             var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
-            var paramDistribution = new Vectors([0, 30, 10]);
+            var paramDistribution = new Vectors([0, 30]);
             int numparam = 1;
 
             //var e = LaplaceDistribution.Generate((1, 10000), paramDistribution, new Random());
@@ -284,26 +284,53 @@ namespace Regression_analysis
                         );
 
             var rand = new Random();
-            //var opt = new NelderMeadOptimizator();
-            //var func = new LaplaceMMKDistribution();
-            var X = LinespaceRandom.Generate((n, model.CountFacts), [(-1e+4, 1e+4)], rand);
+            var opt1 = new DFPOptimizator();
+            var opt2 = new NelderMeadOptimizator();
+            
+            var func = new CauchyMMKDistribution();
+            var X = LinespaceRandom.Generate((n, model.CountFacts), [(-10, 10)], rand);
             //var X = RegressionEvaluator.GenerateXFromPlan(planX, planP, n, rand);
-            var error = new GammaDistribution();
+            var error = new CauchyDistribution();
             var e = error.Generate((1, n), paramDistribution);
 
             var y = (model.CreateMatrixX(X) & model.TrueTheta.T()).T() + e;
 
-            var res = ComparisonMethods.Compare(
-                    model,
-                    new MNKEstimator(),
-                    new MMKEstimator(MMKConfigLoader.Gamma(ismultiiteration: false, maxiteration: 5000)),
-                    [paramDistribution, X, y]
+            //var res = ComparisonMethods.Compare(
+            //        model,
+            //        new MNKEstimator(),
+            //        new MMKEstimator(MMKConfigLoader.Laplace(ismultiiteration: false, maxiteration: 5000)),
+            //        [paramDistribution, X, y]
 
-                );
+            //    );
+            var MNK = new MNKEstimator();
+            var calc_theta = MNK.EstimateParameters(model, [paramDistribution, X, y]);
             
-            string json = JsonSerializer.Serialize(res, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true});
-            File.WriteAllText($"D:/Program/Budancev/ОР/Samples/CompareMethods_Gamma_{n}.json", json);
-            Console.WriteLine(json);
+            var res = opt1.Optimisate(
+                func.LogLikelihood,
+                func.Gradient,
+                model,
+                calc_theta,
+                [paramDistribution, X, y],
+                eps: 1e-7
+            );
+
+            Console.WriteLine(res);
+
+            Console.WriteLine(calc_theta);
+            res = opt2.Optimisate(
+                func.LogLikelihood,
+                func.Gradient,
+                model,
+                calc_theta,
+                [paramDistribution, X, y],
+                1e-7
+            );
+            Console.WriteLine(res);
+
+            //string json = JsonSerializer.Serialize(res, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true});
+            //File.WriteAllText($"/home/zodiac/Program/ОР/Samples/CompareMethods_Laplace_{n}.json", json);
+            //Console.WriteLine(json);
+            
             /*
             Vectors planX = new Vectors([[-1, -1, -1],
                                         [1, -1, -1],
@@ -320,7 +347,7 @@ namespace Regression_analysis
             {
                 var clock = new Stopwatch();
                 clock.Start();
-                var statistic = RegressionEvaluator.Fit
+                var statistic = RegressionEvaluator.FitParameters
                     (
                         model: new LiniarModel
                         (
@@ -333,7 +360,7 @@ namespace Regression_analysis
                         //evolution: new MNKEstimator(),
                         countIteration: 10000,
                         countObservations: n,
-                        //numberParametr: numparam,
+                        numberParametr: numparam,
                         errorDist: new LaplaceDistribution(),
                         paramsDist: paramDistribution,
                         debug: true,
@@ -348,8 +375,8 @@ namespace Regression_analysis
                 Console.WriteLine();
                 Console.WriteLine(clock.ElapsedMilliseconds);
                 Console.WriteLine("Готово!");
-                //statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:/Program/Budancev/ОР/Samples/H0_Parameters_{numparam}_MMPLaplace{n}.dat"), title: "H0 " + statistic.ToString());
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H0_MMKLaplace{n}.dat"), title: "H0 " + statistic.ToString());
+                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/zodiac/Program/ОР/Samples/H0_Parameters_{numparam}_MMPLaplace{n}.dat"), title: "H0 " + statistic.ToString());
+                //statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/zodiac/Program/ОР/Samples/H0_MMKLaplace{n}.dat"), title: "H0 " + statistic.ToString());
             }
             else if (h == "H1") 
             {

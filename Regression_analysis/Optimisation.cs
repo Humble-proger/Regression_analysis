@@ -129,6 +129,83 @@ namespace Regression_analysis
         }
     }
 
+    public static class GoldenSection
+    {
+        private const double Phi = 1.618033988749895; // Золотое сечение (1 + sqrt(5))/2
+
+        public static OptRes Optimize(
+            LogLikelihoodFunction func,
+            IModel model,
+            Vectors[] @params,
+            Vectors xk,
+            Vectors pk,
+            double eps = 1e-7,
+            int maxIter = 100,
+            double minalpha = 0,
+            double maxalpha = 1.0)
+        {
+            OptRes result = new()
+            {
+                Tol = eps,
+                CountCalcFunc = 0,
+                NumIteration = 0,
+                Convergence = false
+            };
+
+            double Func(double alpha) => func(model, xk + alpha * pk, @params);
+
+            if (maxIter < 1)
+            {
+                result.MinPoint = new Vectors([(minalpha + maxalpha) / 2]);
+                result.MinValueFunction = Func(result.MinPoint[0]);
+                result.CountCalcFunc++;
+                return result;
+            }
+
+            double a = minalpha;
+            double b = maxalpha;
+            
+            double x1 = b - (b - a) / Phi;
+            double x2 = a + (b - a) / Phi;
+            
+            double f1 = Func(x1); result.CountCalcFunc++;
+            double f2 = Func(x2); result.CountCalcFunc++;
+
+            for (; result.NumIteration < maxIter; result.NumIteration++)
+            {
+                if (Math.Abs(b - a) < eps)
+                {
+                    result.MinPoint = new Vectors([(a + b) / 2]);
+                    result.MinValueFunction = Func(result.MinPoint[0]);
+                    result.CountCalcFunc++;
+                    result.Convergence = true;
+                    return result;
+                }
+
+                if (f1 < f2)
+                {
+                    b = x2;
+                    x2 = x1;
+                    f2 = f1;
+                    x1 = b - (b - a) / Phi;
+                    f1 = Func(x1); result.CountCalcFunc++;
+                }
+                else
+                {
+                    a = x1;
+                    x1 = x2;
+                    f1 = f2;
+                    x2 = a + (b - a) / Phi;
+                    f2 = Func(x2); result.CountCalcFunc++;
+                }
+            }
+
+            result.MinPoint = new Vectors([(a + b) / 2]);
+            result.MinValueFunction = Func(result.MinPoint[0]);
+            result.CountCalcFunc++;
+            return result;
+        }
+    }
 
     public class CGOptimizator : IOprimizator
     {
@@ -164,10 +241,13 @@ namespace Regression_analysis
             Vectors xk = x0, xkp1, gfk = dffunc(model, x0, @params), gfkp1, pk = -gfk;
             int iter = 0, calcFunc = 0; double norm = double.MaxValue;
             OptRes linRes;
-
+            bool debag = true;
+            double funcvalue = func(model, x0, @params), oldfuncvalue = double.MaxValue;
             Vectors DfFunc(Vectors x0) => dffunc(model, x0, @params);
 
-            OptRes FindOptAlpha(Vectors xk, Vectors pk) => QuadraticInterpolation.Optimisate(func, model, @params, xk, pk);
+            OptRes FindOptAlpha(Vectors xk, Vectors pk) => GoldenSection.Optimize(func, model, @params, xk, pk);
+
+            Console.WriteLine($"Начальное приближение: {x0}");
 
             for (; norm > eps && iter < maxIter; iter++)
             {
@@ -178,8 +258,17 @@ namespace Regression_analysis
                 gfkp1 = DfFunc(xkp1);
                 w = ScalarMult(gfkp1, gfkp1) / ScalarMult(gfk, gfk);
                 pk = (gfkp1 - w * pk) * -1;
-                norm = Vectors.Norm(xkp1 - xk);
                 (xk, gfk) = (xkp1, gfkp1);
+                oldfuncvalue = funcvalue;
+                funcvalue = func(model, xk, @params);
+                norm = double.Abs(funcvalue - oldfuncvalue);
+                if (debag) {
+                    Console.WriteLine($"Итерация: {iter}");
+                    Console.WriteLine($"xk: {xk}");
+                    Console.WriteLine($"Norm: {norm}");
+                    Console.WriteLine($"gfk: {alphaK * gfk}");
+                    Console.WriteLine();
+                }
             }
             OptRes temp_res = new()
             {
@@ -191,6 +280,7 @@ namespace Regression_analysis
                 Norm = norm,
                 Convergence = Vectors.Norm(pk) < eps
             };
+            Console.WriteLine(temp_res.MinValueFunction);
             return temp_res;
         }
 
@@ -293,6 +383,7 @@ namespace Regression_analysis
                 pk, sk, rk, a, b;
             double alpha_k;
             OptRes optRes;
+            bool debag = true;
             OptRes result = new()
             {
                 Tol = eps,
@@ -304,10 +395,10 @@ namespace Regression_analysis
 
             double denominatorA, denominatorB;
 
-            OptRes FindOptAlpha(Vectors xk, Vectors pk) => QuadraticInterpolation.Optimisate(func, model, @params, xk, pk);
+            OptRes FindOptAlpha(Vectors xk, Vectors pk) => GoldenSection.Optimize(func, model, @params, xk, pk);
 
             //Console.WriteLine("Начало оптимизации...");
-            for (; result.NumIteration < maxIter && (result.Norm = Vectors.Norm(gfk)) > eps; result.NumIteration++)
+            for (; result.NumIteration < maxIter && result.Norm > eps; result.NumIteration++)
             {
                 //Console.WriteLine($"---------- Итерация {Result.NumIteration} ----------");
                 pk = -hk.Dot(gfk.T()).T();
@@ -317,6 +408,7 @@ namespace Regression_analysis
                 result.CountCalcFunc += optRes.CountCalcFunc;
                 alpha_k = optRes.MinPoint[0];
                 xkp1 = xk + alpha_k * pk;
+                result.Norm = Vectors.Norm(xkp1 - xk);
                 gfkp1 = DFunc(xkp1);
                 sk = alpha_k * pk;
                 rk = gfkp1 - gfk;
@@ -337,6 +429,13 @@ namespace Regression_analysis
                     hk = hk + a - b;
                 }
                 xk = xkp1; gfk = gfkp1;
+                if (debag) {
+                    Console.WriteLine($"Итерация: {result.NumIteration}");
+                    Console.WriteLine($"xk: {xk}");
+                    Console.WriteLine($"Norm: {result.Norm}");
+                    Console.WriteLine($"gfk: {alpha_k * gfk}");
+                    Console.WriteLine();
+                }
             }
             if (result.Norm < eps)
                 result.Convergence = true;
