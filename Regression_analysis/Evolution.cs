@@ -284,7 +284,7 @@ namespace Regression_analysis
                         );
 
             var rand = new Random();
-            var opt1 = new DFPOptimizator();
+            var opt1 = new CGOptimizator();
             var opt2 = new NelderMeadOptimizator();
             
             var func = new CauchyMMKDistribution();
@@ -304,19 +304,24 @@ namespace Regression_analysis
             //    );
             var MNK = new MNKEstimator();
             var calc_theta = MNK.EstimateParameters(model, [paramDistribution, X, y]);
-            
+            var clock = new Stopwatch();
+            clock.Start();
+
             var res = opt1.Optimisate(
                 func.LogLikelihood,
                 func.Gradient,
                 model,
                 calc_theta,
+                //Vectors.Inv(func.Gessian(model, calc_theta, [paramDistribution, X, y])),
                 [paramDistribution, X, y],
                 eps: 1e-7
             );
+            clock.Stop();
 
-            Console.WriteLine(res);
+            Console.WriteLine((res, clock.ElapsedMilliseconds));
 
             Console.WriteLine(calc_theta);
+            clock.Restart();
             res = opt2.Optimisate(
                 func.LogLikelihood,
                 func.Gradient,
@@ -325,7 +330,8 @@ namespace Regression_analysis
                 [paramDistribution, X, y],
                 1e-7
             );
-            Console.WriteLine(res);
+            clock.Stop();
+            Console.WriteLine((res, clock.ElapsedMilliseconds));
 
             //string json = JsonSerializer.Serialize(res, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true});
             //File.WriteAllText($"/home/zodiac/Program/ОР/Samples/CompareMethods_Laplace_{n}.json", json);

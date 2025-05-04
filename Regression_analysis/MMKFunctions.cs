@@ -103,9 +103,9 @@ namespace Regression_analysis
                 matrixM = model.VectorFunc(Vectors.GetRow(x, i));
                 funcVector = double.Pow(y[i] - (matrixM & theta)[0] - paramsDist[0], 2);
                 matrixM = matrixM.T() & matrixM;
-                residuals += ((funcVector - temp) / (funcVector + temp)) * matrixM;
+                residuals += ((funcVector - temp) / double.Pow(funcVector + temp, 2)) * matrixM;
             }
-            return residuals;
+            return -2 * residuals;
         };
 
         public LogLikelihoodFunction LogLikelihoodFull => (model, theta, @params) =>

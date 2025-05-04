@@ -1,4 +1,8 @@
 ﻿
+using System.Security.Cryptography;
+
+using Microsoft.VisualBasic.FileIO;
+
 namespace Regression_analysis
 {
 
@@ -238,37 +242,55 @@ namespace Regression_analysis
         {
             if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
             double alphaK = 1.0, w;
-            Vectors xk = x0, xkp1, gfk = dffunc(model, x0, @params), gfkp1, pk = -gfk;
+            Vectors xk = x0, xkp1, gfk = dffunc(model, x0, @params), gfkp1, pk = -gfk, deltaX, deltaG;
             int iter = 0, calcFunc = 0; double norm = double.MaxValue;
             OptRes linRes;
-            bool debag = true;
-            double funcvalue = func(model, x0, @params), oldfuncvalue = double.MaxValue;
+            //bool debag = true;
+            //double funcvalue = func(model, x0, @params), oldfuncvalue = double.MaxValue;
             Vectors DfFunc(Vectors x0) => dffunc(model, x0, @params);
 
-            OptRes FindOptAlpha(Vectors xk, Vectors pk) => GoldenSection.Optimize(func, model, @params, xk, pk);
+            OptRes FindOptAlpha(Vectors xk, Vectors pk) => GoldenSection.Optimize(func, model, @params, xk, pk, maxIter: 100);
+
+            double oldfunc = func(model, xk, @params), newfunc, c1 = 1e-4, c2 = 0.9, temp;
 
             Console.WriteLine($"Начальное приближение: {x0}");
 
+            OptRes optRes = optRes = FindOptAlpha(xk, pk);
+            calcFunc += optRes.CountCalcFunc;
+            alphaK = optRes.MinPoint[0];
+
             for (; norm > eps && iter < maxIter; iter++)
             {
-                linRes = FindOptAlpha(xk, pk);
-                alphaK = linRes.MinPoint[0];
-                calcFunc += linRes.CountCalcFunc;
+                //linRes = FindOptAlpha(xk, pk);
+                //alphaK = linRes.MinPoint[0];
+                //calcFunc += linRes.CountCalcFunc;
                 xkp1 = xk + alphaK * pk;
+                norm = Vectors.Norm(xkp1 - xk);
                 gfkp1 = DfFunc(xkp1);
+
+                newfunc = func(model, xkp1, @params);
+                temp = (gfk & pk.T())[0];
+                if (newfunc > oldfunc + c1 * alphaK * temp)
+                {
+                    alphaK *= 0.5;
+                }
+                else if ((gfkp1 & pk.T())[0] < c2 * temp)
+                {
+                    alphaK *= 1.5;
+                }
+
+                alphaK = double.Max(eps, double.Min(alphaK, 1));
+
                 w = ScalarMult(gfkp1, gfkp1) / ScalarMult(gfk, gfk);
                 pk = (gfkp1 - w * pk) * -1;
+                
+                //deltaX = xkp1 - xk;
+                //deltaG = gfkp1 - gfk;
+                //alphaK = (deltaX & deltaG.T())[0] / (deltaG & deltaG.T())[0];
+                
+
                 (xk, gfk) = (xkp1, gfkp1);
-                oldfuncvalue = funcvalue;
-                funcvalue = func(model, xk, @params);
-                norm = double.Abs(funcvalue - oldfuncvalue);
-                if (debag) {
-                    Console.WriteLine($"Итерация: {iter}");
-                    Console.WriteLine($"xk: {xk}");
-                    Console.WriteLine($"Norm: {norm}");
-                    Console.WriteLine($"gfk: {alphaK * gfk}");
-                    Console.WriteLine();
-                }
+                oldfunc = newfunc;
             }
             OptRes temp_res = new()
             {
@@ -365,25 +387,26 @@ namespace Regression_analysis
             else throw new Exception("Incorrect shapes vectors.");
         }
 
-        public OptRes Optimisate(
+        public OptRes OptimisateH(
             LogLikelihoodFunction func,
             LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors x0,
+            Vectors h0,
             Vectors[] @params,
             double eps,
             int maxIter = 500
             )
         {
             if (!x0.IsVector()) throw new Exception("InitParam должен быть вектором.");
+            if (h0.Shape.Item1 != x0.Size || h0.Shape.Item2 != x0.Size) throw new ArgumentException("Начальная матрица H задана не верно");
             if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
             Vectors DFunc(Vectors xk) => dffunc(model, xk, @params);
 
-            Vectors hk = Vectors.Eig((x0.Size, x0.Size)), xk = x0, xkp1, gfk = DFunc(xk), gfkp1,
-                pk, sk, rk, a, b;
-            double alpha_k;
-            OptRes optRes;
-            bool debag = true;
+            Vectors hk = h0, xk = x0, xkp1, gfk = DFunc(xk), gfkp1,
+                pk, sk, rk, a, b, deltaX;
+            double alpha_k = 1.0;
+            //OptRes optRes;
             OptRes result = new()
             {
                 Tol = eps,
@@ -393,9 +416,15 @@ namespace Regression_analysis
                 Norm = double.MaxValue
             };
 
-            double denominatorA, denominatorB;
+            double denominatorA, denominatorB, oldfunc = func(model, xk, @params), newfunc, c1 = 1e-1, c2 = 0.6, temp;
+            result.CountCalcFunc += 1;
 
-            OptRes FindOptAlpha(Vectors xk, Vectors pk) => GoldenSection.Optimize(func, model, @params, xk, pk);
+            OptRes FindOptAlpha(Vectors xk, Vectors pk, int max) => GoldenSection.Optimize(func, model, @params, xk, pk, maxIter: max);
+
+            pk = -hk.Dot(gfk.T()).T();
+            OptRes optRes = FindOptAlpha(xk, pk, 100);
+            result.CountCalcFunc += optRes.CountCalcFunc;
+            alpha_k = optRes.MinPoint[0];
 
             //Console.WriteLine("Начало оптимизации...");
             for (; result.NumIteration < maxIter && result.Norm > eps; result.NumIteration++)
@@ -403,16 +432,139 @@ namespace Regression_analysis
                 //Console.WriteLine($"---------- Итерация {Result.NumIteration} ----------");
                 pk = -hk.Dot(gfk.T()).T();
                 //Console.WriteLine($"pk: {pk}");
-                optRes = FindOptAlpha(xk, pk);
+                //optRes = FindOptAlpha(xk, pk);
                 //Console.WriteLine(optRes);
-                result.CountCalcFunc += optRes.CountCalcFunc;
-                alpha_k = optRes.MinPoint[0];
+                //result.CountCalcFunc += optRes.CountCalcFunc;
+                //alpha_k = optRes.MinPoint[0];
+                
                 xkp1 = xk + alpha_k * pk;
                 result.Norm = Vectors.Norm(xkp1 - xk);
                 gfkp1 = DFunc(xkp1);
+
                 sk = alpha_k * pk;
                 rk = gfkp1 - gfk;
                 //Console.WriteLine($"sk: {sk}; rk: {rk}");
+
+                deltaX = xkp1 - xk;
+                //deltaGrad = gfkp1 - gfk;
+
+                //temp = deltaX & deltaX.T();
+                //temp1 = temp[0];
+                //alpha_k = (deltaX & rk.T())[0] / (rk & rk.T())[0];
+                //alpha_k = double.Max(eps, double.Min(alpha_k, 1));
+
+                newfunc = func(model, xkp1, @params);
+                result.CountCalcFunc += 1;
+                temp = (gfk & pk.T())[0];
+                if (newfunc > oldfunc + c1 * alpha_k * temp)
+                {
+                    optRes = FindOptAlpha(xk, pk, 10);
+                    result.CountCalcFunc += optRes.CountCalcFunc;
+                    alpha_k = optRes.MinPoint[0];
+                }
+                else if ((gfkp1 & pk.T())[0] < c2 * temp) {
+                    optRes = FindOptAlpha(xk, pk, 10);
+                    result.CountCalcFunc += optRes.CountCalcFunc;
+                    alpha_k = optRes.MinPoint[0];
+                }
+                //alpha_k = double.Max(eps, double.Min(alpha_k, 5));
+                // Считаем Гессиан
+                denominatorA = ScalarMult(sk, rk);
+                denominatorB = ScalarMult(rk & hk, rk);
+
+                if (double.Abs(denominatorA) < eps || double.Abs(denominatorB) < eps)
+                {
+                    hk = Vectors.Eig(hk.Shape);
+                }
+                else
+                {
+                    a = (sk.T() & sk) / denominatorA;
+                    b = (hk & (rk.T() & rk) & hk) / denominatorB;
+                    hk = hk + a - b;
+                }
+                xk = xkp1; gfk = gfkp1;
+                oldfunc = newfunc;
+            }
+            if (result.Norm < eps)
+                result.Convergence = true;
+            result.MinPoint = xk;
+            result.MinValueFunction = func(model, xk, @params);
+            return result;
+        }
+
+
+
+
+        public OptRes Optimisate(
+            LogLikelihoodFunction func,
+            LogLikelihoodGradient? dffunc,
+            IModel model,
+            Vectors x0,
+            Vectors[] @params,
+            double eps,
+            int maxIter = 1000
+            )
+        {
+            if (!x0.IsVector()) throw new Exception("InitParam должен быть вектором.");
+            if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
+            Vectors DFunc(Vectors xk) => dffunc(model, xk, @params);
+
+            Vectors hk = Vectors.Eig((x0.Size, x0.Size)), xk = x0, xkp1, gfk = DFunc(xk), gfkp1,
+                pk, sk, rk, a, b, deltaX;
+            double alpha_k = 1.0;
+            
+            OptRes result = new()
+            {
+                Tol = eps,
+                CountCalcFunc = 0,
+                Convergence = false,
+                NumIteration = 0,
+                Norm = double.MaxValue
+            };
+
+            double denominatorA, denominatorB, oldfunc = func(model, xk, @params), newfunc, c1 = 1e-4, c2 = 0.9, temp;
+
+            OptRes FindOptAlpha(Vectors xk, Vectors pk) => GoldenSection.Optimize(func, model, @params, xk, pk, maxIter: 100, maxalpha: 1);
+            pk = -hk.Dot(gfk.T()).T();
+            OptRes optRes = optRes = FindOptAlpha(xk, pk);
+            result.CountCalcFunc += optRes.CountCalcFunc;
+            alpha_k = optRes.MinPoint[0];
+            //Console.WriteLine("Начало оптимизации...");
+            for (; result.NumIteration < maxIter && result.Norm > eps; result.NumIteration++)
+            {
+                //Console.WriteLine($"---------- Итерация {Result.NumIteration} ----------");
+                pk = -hk.Dot(gfk.T()).T();
+                //Console.WriteLine($"pk: {pk}");
+                //optRes = FindOptAlpha(xk, pk);
+                //Console.WriteLine(optRes);
+                //result.CountCalcFunc += optRes.CountCalcFunc;
+                //alpha_k = optRes.MinPoint[0];
+                xkp1 = xk + alpha_k * pk;
+                result.Norm = Vectors.Norm(xkp1 - xk);
+                gfkp1 = DFunc(xkp1);
+
+                sk = alpha_k * pk;
+                rk = gfkp1 - gfk;
+                //Console.WriteLine($"sk: {sk}; rk: {rk}");
+
+                deltaX = xkp1 - xk;
+                //deltaGrad = gfkp1 - gfk;
+
+                //temp = deltaX & deltaX.T();
+                //temp1 = temp[0];
+                //alpha_k = (deltaX & rk.T())[0] / (rk & rk.T())[0];
+                newfunc = func(model, xkp1, @params);
+                temp = (gfk & pk.T())[0];
+                if (newfunc > oldfunc + c1 * alpha_k * temp)
+                {
+                    alpha_k *= 0.5;
+                }
+                else if ((gfkp1 & pk.T())[0] < c2 * temp)
+                {
+                    alpha_k *= 1.5;
+                }
+
+                    alpha_k = double.Max(eps, double.Min(alpha_k, 1));
 
                 // Считаем Гессиан
                 denominatorA = ScalarMult(sk, rk);
@@ -429,13 +581,7 @@ namespace Regression_analysis
                     hk = hk + a - b;
                 }
                 xk = xkp1; gfk = gfkp1;
-                if (debag) {
-                    Console.WriteLine($"Итерация: {result.NumIteration}");
-                    Console.WriteLine($"xk: {xk}");
-                    Console.WriteLine($"Norm: {result.Norm}");
-                    Console.WriteLine($"gfk: {alpha_k * gfk}");
-                    Console.WriteLine();
-                }
+                oldfunc = newfunc;
             }
             if (result.Norm < eps)
                 result.Convergence = true;
