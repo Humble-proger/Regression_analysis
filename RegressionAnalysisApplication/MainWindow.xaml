@@ -11,6 +11,10 @@
         <local:InverseBooleanConverter x:Key="InverseBooleanConverter" />
     </Window.Resources>
 
+    <Window.DataContext>
+        <local:MainWindowViewModel />
+    </Window.DataContext>
+    
     <TabControl>
         <TabItem Header="Статистики критериев">
             <ScrollViewer>
@@ -173,44 +177,32 @@
                                     </Grid.ColumnDefinitions>
                                     <GroupBox Header="Закон распределения">
                                         <StackPanel>
-                                            <ComboBox Width="178" Height="23" HorizontalAlignment="Left" Margin="0,10,0,10" SelectedIndex="0"  >
-                                                <TextBlock>Нормальное распределение</TextBlock>
-                                                <TextBlock>Равномерное распределение</TextBlock>
-                                                <TextBlock>Экспоненциальное распределение</TextBlock>
-                                                <TextBlock>Распределение Лапласа</TextBlock>
-                                                <TextBlock>Распределение Коши</TextBlock>
-                                                <TextBlock>Гамма распределение</TextBlock>
+                                            <ComboBox Width="178" Height="23" HorizontalAlignment="Left" Margin="0,10,0,10" SelectedItem="{Binding SelectDistribution, Mode=TwoWay}" ItemsSource="{Binding ErrorDistibution}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Name}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
                                             </ComboBox>
                                         </StackPanel>
                                     </GroupBox>
                                     <GroupBox Header="Параметры" Grid.Column="1">
-                                        <ListBox>
-                                            <ListBoxItem>
-                                                <Grid>
-                                                    <Grid.RowDefinitions>
-                                                        <RowDefinition ></RowDefinition>
-                                                    </Grid.RowDefinitions>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition ></ColumnDefinition>
-                                                        <ColumnDefinition Width="40"></ColumnDefinition>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock TextWrapping="Wrap" Text="Маштаб:" Grid.Column="0" Margin="0, 0, 5, 0"/>
-                                                    <TextBox TextWrapping="Wrap" Text="5" HorizontalContentAlignment="Center" Grid.Column="1"/>
-                                                </Grid>
-                                            </ListBoxItem>
-                                            <ListBoxItem>
-                                                <Grid>
-                                                    <Grid.RowDefinitions>
-                                                        <RowDefinition ></RowDefinition>
-                                                    </Grid.RowDefinitions>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition ></ColumnDefinition>
-                                                        <ColumnDefinition Width="40"></ColumnDefinition>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock TextWrapping="Wrap" Text="Cдвиг:" Grid.Column="0" Margin="0, 0, 5, 0"/>
-                                                    <TextBox TextWrapping="Wrap" Text="0" HorizontalContentAlignment="Center" Grid.Column="1"/>
-                                                </Grid>
-                                            </ListBoxItem>
+                                        <ListBox ItemsSource="{Binding SelectDistribution.Parameters}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition ></RowDefinition>
+                                                        </Grid.RowDefinitions>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition ></ColumnDefinition>
+                                                            <ColumnDefinition Width="40"></ColumnDefinition>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock TextWrapping="Wrap" Text="{Binding Name, StringFormat={}{0}:}" Grid.Column="0" Margin="0, 0, 5, 0"/>
+                                                        <TextBox TextWrapping="Wrap" Text="{Binding Value, Mode=TwoWay}" HorizontalContentAlignment="Center" Grid.Column="1"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
                                         </ListBox>
                                     </GroupBox>
                                 </Grid>

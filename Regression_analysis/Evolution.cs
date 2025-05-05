@@ -264,6 +264,7 @@ namespace Regression_analysis
             //var e = LaplaceDistribution.Generate((1, 10000), paramDistribution, new Random());
             //e.SaveToDAT($"D:/Program/Budancev/ОР/Samples/Laplace.dat", "Laplace (0, 30)");
             
+            /*
             Vectors planX = new Vectors([[-1, -1, -1],
                                         [1, -1, -1],
                                         [-1, 1, -1],
@@ -332,12 +333,12 @@ namespace Regression_analysis
             );
             clock.Stop();
             Console.WriteLine((res, clock.ElapsedMilliseconds));
-
+            */
             //string json = JsonSerializer.Serialize(res, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true});
             //File.WriteAllText($"/home/zodiac/Program/ОР/Samples/CompareMethods_Laplace_{n}.json", json);
             //Console.WriteLine(json);
             
-            /*
+            
             Vectors planX = new Vectors([[-1, -1, -1],
                                         [1, -1, -1],
                                         [-1, 1, -1],
@@ -362,12 +363,12 @@ namespace Regression_analysis
                             thetaH0,
                             true
                         ),
-                        evolution: new MMKEstimator(MMKConfigLoader.Laplace(ismultiiteration: false, maxiteration: 5000)),
+                        evolution: new MMKEstimator(MMKConfigLoader.Exponential(ismultiiteration: true, maxiteration: 2000)),
                         //evolution: new MNKEstimator(),
-                        countIteration: 10000,
+                        countIteration: 2000,
                         countObservations: n,
                         numberParametr: numparam,
-                        errorDist: new LaplaceDistribution(),
+                        errorDist: new ExponentialDistribution(),
                         paramsDist: paramDistribution,
                         debug: true,
                         parallel: true,
@@ -381,7 +382,7 @@ namespace Regression_analysis
                 Console.WriteLine();
                 Console.WriteLine(clock.ElapsedMilliseconds);
                 Console.WriteLine("Готово!");
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/zodiac/Program/ОР/Samples/H0_Parameters_{numparam}_MMPLaplace{n}.dat"), title: "H0 " + statistic.ToString());
+                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:/Program/Budancev/ОР/Samples/H0_Parameters_{numparam}_{1e4}_MMPExponential{n}.dat"), title: "H0 " + statistic.ToString());
                 //statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/zodiac/Program/ОР/Samples/H0_MMKLaplace{n}.dat"), title: "H0 " + statistic.ToString());
             }
             else if (h == "H1") 
@@ -414,7 +415,7 @@ namespace Regression_analysis
                 statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H1_MMKLaplace{n}_lr.dat"), title: "H1 " + statistic.ToString());
                 
             }
-            */
+            
         }
     }
 }

@@ -584,17 +584,16 @@ namespace Regression_analysis
             var result1 = evolution1.EstimateParameters(model, parameters);
             var result2 = evolution2.EstimateParameters(model, parameters);
             var matrixX = model.CreateMatrixX(parameters[1]);
-            if (result1 is not null || result2 is not null) {
-                return new ResultCompareMethods
+            return result1 is not null || result2 is not null
+                ? new ResultCompareMethods
                 {
                     ParamsMethod1 = ((Vectors) result1).ToArrayVector(),
                     ParamsMethod2 = ((Vectors) result2).ToArrayVector(),
                     True_Params = model.TrueTheta.ToArrayVector(),
                     MatrixX = matrixX.ToArray(),
                     Y = parameters[2].ToArrayVector()
-                };
-            }
-            throw new Exception("Возникли ошибки при оценивании параметров");
+                }
+                : throw new Exception("Возникли ошибки при оценивании параметров");
         }
     }
 

@@ -18,23 +18,84 @@ namespace Regression_analysis
         Gamma
     }
 
+    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+    public class DistributionNameAttribute : Attribute
+    {
+        public string Name { get; }
+        public TypeDisribution Type { get; }
+
+        public DistributionNameAttribute(string name, TypeDisribution type)
+        {
+            Name = name;
+            Type = type;
+        }
+    }
+
     public interface IRandomDistribution
     {
-        string Name { get; }
-        int CountParametrsDistribution { get; }
+        public string Name { get; }
+        public int CountParametrsDistribution { get; }
+        public string[] NameParameters { get; }
+        public (double?, double?)[]? BoundsParameters { get; }
         Vectors DefaultParametrs { get; }
-        public abstract static double Generate(in Random rand);
-        public abstract static double? Generate(Vectors paramsDist, in Random rand);
-        public abstract static Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand);
         public double Generate();
         public double? Generate(Vectors paramsDist);
         public Vectors? Generate((int, int) shape, Vectors paramsDist);
         public bool CheckParamsDist(Vectors paramsDist);
-
-        public abstract static Moment Mean { get; }
-        public abstract static Moment Var { get; }
     }
 
+    public class DistributionFactory
+    {
+        private readonly Dictionary<TypeDisribution, IRandomDistribution> _distributions;
+
+        public DistributionFactory(int? seed = null)
+        {
+            _distributions = [];
+            LoadDistributions(seed);
+        }
+
+        private void LoadDistributions(int? seed)
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+
+            foreach (var type in assembly.GetTypes()
+                .Where(t => typeof(IRandomDistribution).IsAssignableFrom(t)
+                        && !t.IsInterface
+                        && !t.IsAbstract))
+            {
+                var attr = type.GetCustomAttribute<DistributionNameAttribute>();
+                if (attr == null) continue;
+
+                try
+                {
+                    var instance = Activator.CreateInstance(type, seed) as IRandomDistribution;
+#pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+                    _distributions[attr.Type] = instance;
+#pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to create {attr.Name}: {ex.Message}");
+                }
+            }
+        }
+
+        public IRandomDistribution GetDistribution(TypeDisribution type)
+        {
+            return _distributions.TryGetValue(type, out var distribution)
+                ? distribution
+                : throw new KeyNotFoundException($"Distribution {type} not found");
+        }
+
+        public IEnumerable<(TypeDisribution Type, string Name, IRandomDistribution Instance)> GetAllDistributions()
+        {
+            return _distributions.Select(kv => (kv.Key, GetDistributionName(kv.Value.GetType()), kv.Value));
+        }
+
+        private static string GetDistributionName(Type distributionType) => distributionType.GetCustomAttribute<DistributionNameAttribute>()?.Name
+                   ?? distributionType.Name;
+    }
+    [DistributionName("Равномерное распределение", TypeDisribution.Uniform)]
     public class UniformDistribution(int? seed = null) : IRandomDistribution
     {
         public int CountParametrsDistribution => 2;
@@ -76,8 +137,13 @@ namespace Regression_analysis
 
         public static Moment Mean => (paramDist) => (paramDist[1] - paramDist[0]) / 2;
         public static Moment Var => (paramDist) => double.Pow(paramDist[1] - paramDist[0], 2) / 12;
+
+        public string[] NameParameters => ["Нижняя граница", "Верхняя граница"];
+
+        public (double?, double?)[]? BoundsParameters => null;
     }
 
+    [DistributionName("Экспоненциальное распределение", TypeDisribution.Exponential)]
     public class ExponentialDistribution(int? seed = null) : IRandomDistribution {
 
         public int CountParametrsDistribution => 2;
@@ -112,8 +178,13 @@ namespace Regression_analysis
 
         public static Moment Mean => (paramDist) => paramDist[1] + paramDist[0];
         public static Moment Var => (paramDist) => paramDist[1] * paramDist[1];
+
+        public string[] NameParameters => ["Сдвиг", "Маштаб"];
+
+        public (double?, double?)[]? BoundsParameters => [(null, null), (0, null)];
     }
 
+    [DistributionName("Распределение Лапласа", TypeDisribution.Laplace)]
     public class LaplaceDistribution(int? seed = null) : IRandomDistribution
     {
         public int CountParametrsDistribution => 2;
@@ -158,8 +229,13 @@ namespace Regression_analysis
 
         public static Moment Mean => (paramDist) => paramDist[0];
         public static Moment Var => (paramDist) => 2 * paramDist[1] * paramDist[1];
+
+        public string[] NameParameters => ["Сдвиг", "Маштаб"];
+
+        public (double?, double?)[]? BoundsParameters => [(null, null), (0, null)];
     }
 
+    [DistributionName("Распределение Коши", TypeDisribution.Cauchy)]
     public class CauchyDistribution(int? seed = null) : IRandomDistribution
     {
         public int CountParametrsDistribution => 2;
@@ -197,14 +273,19 @@ namespace Regression_analysis
         public static Moment Mean => (paramDist) => null;
         public static Moment Var => (paramDist) => null;
 
-    }
+        public string[] NameParameters => ["Сдвиг", "Маштаб"];
 
+        public (double?, double?)[]? BoundsParameters => [(null, null), (0, null)];
+    }
+    
+    [DistributionName("Нормальное распределение", TypeDisribution.Normal)]
     public class NormalDistribution(int? seed = null) : IRandomDistribution
     {
         public int CountParametrsDistribution => 2;
         public Vectors DefaultParametrs => new([0, 1]);
 
         public string Name => "Нормальное";
+        public static string? StaticName => "Нормальное";
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Uniform(double a, double b, in Random rand) => a + (b - a) * rand.NextDouble();
@@ -310,14 +391,20 @@ namespace Regression_analysis
         public static Moment Mean => (paramDist) => paramDist[0];
         public static Moment Var => (paramDist) => paramDist[1] * paramDist[1];
 
-    }
+        public string[] NameParameters => ["Сдвиг", "Маштаб"];
 
+        public (double?, double?)[]? BoundsParameters => [(null, null), (0, null)];
+    }
+    
+    [DistributionName("Гамма распределение", TypeDisribution.Gamma)]
     public class GammaDistribution(int? seed = null) : IRandomDistribution 
     {
         public int CountParametrsDistribution => 3;
         public Vectors DefaultParametrs => new([0, 1, 1]);
 
         public string Name => "Гамма";
+        public static string? StaticName => "Гамма";
+
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         
@@ -376,56 +463,7 @@ namespace Regression_analysis
             } while (e2 < (k - 1) * (e1 - Math.Log(e1) - 1));
             return k * e1;
         }
-        private static double[] InitConstantGO(double k)
-        {
-            var val = Math.Sqrt(k);
-            var gamma_constats = new double[8];
-            gamma_constats[0] = k - 1;
-            gamma_constats[1] = 2 * MathConstants.Sqrt2 * val / MathConstants.Sqrt3 + k;
-            gamma_constats[2] = Math.Sqrt(gamma_constats[1]);
-            gamma_constats[3] = MathConstants.Sqrt2 * MathConstants.Sqrt3 * gamma_constats[1];
-            gamma_constats[4] = gamma_constats[3] + gamma_constats[0];
-            gamma_constats[5] = gamma_constats[1] / (gamma_constats[0] - 1);
-            gamma_constats[6] = 2 * gamma_constats[1] / (gamma_constats[0] * val);
-            gamma_constats[7] = gamma_constats[4] + Math.Log(gamma_constats[2] * gamma_constats[3] / gamma_constats[4]) - 2 * gamma_constats[0] - 3.7203285;
-            return gamma_constats;
-        }
-        private static double GO(in double[] gamma_constats, in Random rand)
-        {
-            double result, u, e1, e2, s;
-            var iter = 0;
-            do
-            {
-                u = rand.NextDouble();
-                if (u <= 0.0095722652)
-                {
-                    e1 = Exponential(rand); e2 = Exponential(rand);
-                    result = gamma_constats[4] * (1 + e1 / gamma_constats[3]);
-                    if (gamma_constats[0] * (result / gamma_constats[4] - Math.Log(result / gamma_constats[0])) + gamma_constats[7] <= e2) return result;
-                }
-                else
-                {
-                    do
-                    {
-                        e1 = Normal(rand);
-                        result = gamma_constats[2] * e1 + gamma_constats[0];
-                    } while (result < 0 || result > gamma_constats[4]);
-                    u = rand.NextDouble();
-                    s = 0.5 * e1 * e1;
-                    if (e1 > 0)
-                    {
-                        if (u < (1 - gamma_constats[5] * s)) 
-                            return result;
-                    }
-                    else if (u < (1 + s * (gamma_constats[6] * e1 - gamma_constats[5]))) 
-                        return result;
-                    if (Math.Log(u) < (gamma_constats[0] * Math.Log(result / gamma_constats[0]) + gamma_constats[0] - result + s)) 
-                        return result;
-                }
-            } while (++iter < 1e9);
-            return double.NaN;
-            //throw new Exception("Failed to calculate GO");
-        }
+
         private static double MAT(in Random rand, double k) {
             double d = k - 1.0 / 3;
             double c = 3 * double.Sqrt(d);
@@ -491,6 +529,10 @@ namespace Regression_analysis
 
         public static Moment Mean => (paramDist) => paramDist[0] + paramDist[1] * paramDist[2];
         public static Moment Var => (paramDist) => paramDist[1] * paramDist[1] * paramDist[2];
+
+        public string[] NameParameters => ["Сдвиг","Маштаб", "Форма"];
+
+        public (double?, double?)[]? BoundsParameters => [(null, null), (0, null), (0, null)];
     }
 
     public static class LinespaceRandom
