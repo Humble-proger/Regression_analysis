@@ -95,13 +95,14 @@ namespace Regression_analysis
         private static string GetDistributionName(Type distributionType) => distributionType.GetCustomAttribute<DistributionNameAttribute>()?.Name
                    ?? distributionType.Name;
     }
+
     [DistributionName("Равномерное распределение", TypeDisribution.Uniform)]
     public class UniformDistribution(int? seed = null) : IRandomDistribution
     {
         public int CountParametrsDistribution => 2;
         public Vectors DefaultParametrs => new([0, 1]);
 
-        public string Name => "Равномерное";
+        public string Name => "Uniform";
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
 
@@ -149,7 +150,7 @@ namespace Regression_analysis
         public int CountParametrsDistribution => 2;
         public Vectors DefaultParametrs => new([0, 1]);
 
-        public string Name => "Экспоненциальное";
+        public string Name => "Exponential";
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Exponential(double loc, double scale, double u) => -Math.Log(1 - u) * scale + loc;
@@ -190,7 +191,7 @@ namespace Regression_analysis
         public int CountParametrsDistribution => 2;
         public Vectors DefaultParametrs => new([0, 1]);
 
-        public string Name => "Лапласа";
+        public string Name => "Laplace";
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Laplace(double loc, double scale, in Random rand) {
@@ -241,7 +242,7 @@ namespace Regression_analysis
         public int CountParametrsDistribution => 2;
         public Vectors DefaultParametrs => new([0, 1]);
 
-        public string Name => "Коши";
+        public string Name => "Cauchy";
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Cauchy(double loc, double scale, double u) => loc + scale * Math.Tan(double.Pi * (-1.5 + u * 2));
@@ -284,8 +285,7 @@ namespace Regression_analysis
         public int CountParametrsDistribution => 2;
         public Vectors DefaultParametrs => new([0, 1]);
 
-        public string Name => "Нормальное";
-        public static string? StaticName => "Нормальное";
+        public string Name => "Normal";
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Uniform(double a, double b, in Random rand) => a + (b - a) * rand.NextDouble();
@@ -402,8 +402,7 @@ namespace Regression_analysis
         public int CountParametrsDistribution => 3;
         public Vectors DefaultParametrs => new([0, 1, 1]);
 
-        public string Name => "Гамма";
-        public static string? StaticName => "Гамма";
+        public string Name => "Gamma";
 
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);

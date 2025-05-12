@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 
 namespace RegressionAnalysisApplication
@@ -30,6 +32,22 @@ namespace RegressionAnalysisApplication
             if (value is bool boolValue)
                 return !boolValue;
             return value;
+        }
+    }
+
+    public class IndexConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var item = (FrameworkElement) value;
+            var itemsControl = ItemsControl.ItemsControlFromItemContainer(item);
+            int index = itemsControl.ItemContainerGenerator.IndexFromContainer(item) + 1;
+            return $"Параметр {index}:";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 }

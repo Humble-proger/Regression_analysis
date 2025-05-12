@@ -9,6 +9,7 @@
 
     <Window.Resources>
         <local:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+        <local:IndexConverter x:Key="IndexConverter"/>
     </Window.Resources>
 
     <Window.DataContext>
@@ -33,20 +34,24 @@
                                 </Grid.ColumnDefinitions>
                                 <GroupBox Header="Тип регрессии" Grid.Column="0" Padding="5">
                                     <StackPanel>
-                                        <ComboBox Width="178" HorizontalAlignment="Left" Margin="0,10,0,10" IsReadOnly="True" SelectedIndex="0">
-                                            <TextBlock>Линейная регрессия</TextBlock>
+                                        <ComboBox Width="178" HorizontalAlignment="Left" Margin="0,10,0,10" IsReadOnly="True" ItemsSource="{Binding Regressions}" SelectedItem="{Binding SelectRegression, Mode=TwoWay}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Name}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
                                         </ComboBox>
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock TextWrapping="Wrap" Text="Количество факторов:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                            <TextBox TextWrapping="Wrap" Text="3" Width="50" VerticalAlignment="Center" HorizontalContentAlignment="Center"/>
+                                            <TextBox TextWrapping="Wrap" Text="{Binding SelectRegression.CountFacts, Mode=TwoWay}" Width="50" VerticalAlignment="Center" HorizontalContentAlignment="Center"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock TextWrapping="Wrap" Text="Свободный член:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                            <CheckBox IsChecked="True"/>
+                                            <CheckBox IsChecked="{Binding SelectRegression.FreeMember, Mode=TwoWay}"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock TextWrapping="Wrap" Text="Количество регрессоров:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                            <TextBlock TextWrapping="Wrap" Text="4" VerticalAlignment="Center"/>
+                                            <TextBlock TextWrapping="Wrap" Text="{Binding SelectRegression.CountRegressor}" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </GroupBox>
@@ -54,106 +59,59 @@
 
                                 <GroupBox Header="Факторы" Grid.Column="1" Padding="5">
                                     <StackPanel>
-                                        <ListBox Height="87" Padding="2">
-                                            <ListBoxItem>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <CheckBox Margin="0, 0, 5, 0" IsChecked="True"/>
-                                                    <CheckBox Margin="0, 0, 5, 0" IsChecked="True"/>
-                                                    <TextBlock Text="Фактор 1"/>
-                                                </StackPanel>
-                                            </ListBoxItem>
-                                            <ListBoxItem>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <CheckBox Margin="0, 0, 5, 0" IsChecked="True"/>
-                                                    <CheckBox Margin="0, 0, 5, 0" IsChecked="True"/>
-                                                    <TextBlock Text="Фактор 2"/>
-                                                </StackPanel>
-                                            </ListBoxItem>
-                                            <ListBoxItem>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <CheckBox Margin="0, 0, 5, 0" IsChecked="True"/>
-                                                    <CheckBox Margin="0, 0, 5, 0" IsChecked="False"/>
-                                                    <TextBlock Text="Фактор 3"/>
-                                                </StackPanel>
-                                            </ListBoxItem>
+                                        <ListBox Height="87" Padding="2" ItemsSource="{Binding SelectRegression.Factors}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox Margin="0, 0, 5, 0" IsChecked="{Binding Active, Mode=TwoWay}"/>
+                                                        <CheckBox Margin="0, 0, 5, 0" IsChecked="{Binding Check, Mode=TwoWay}"/>
+                                                        <TextBlock Text="{Binding Name}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
                                         </ListBox>
                                         <UniformGrid Rows="1" Columns="2" Height="25" Margin="0,5,0,0">
-                                            <Button Content="Выбрать все" Margin="2"/>
-                                            <Button Content="Сбросить" Margin="2"/>
+                                            <Button Content="Выбрать все" Margin="2" Command="{Binding SelectRegression.SelectAllFactors}"/>
+                                            <Button Content="Сбросить" Margin="2" Command="{Binding SelectRegression.ResetFactor}"/>
                                         </UniformGrid>
                                     </StackPanel>
                                 </GroupBox>
                                 <GroupBox Header="Дополнительные регрессоры" Grid.Column="2" Padding="5">
                                     <StackPanel>
-                                        <ListBox Padding="2" Height="87">
-                                            <ListBoxItem>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <CheckBox Margin="0, 0, 5, 0" IsChecked="False"/>
-                                                    <TextBlock Text="Фактор 1 x Фактор 2"/>
-                                                </StackPanel>
-                                            </ListBoxItem>
+                                        <ListBox Padding="2" Height="87" ItemsSource="{Binding SelectRegression.AdditionalFactors}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox Margin="0, 0, 5, 0" IsChecked="{Binding Check, Mode=TwoWay}"/>
+                                                        <TextBlock Text="{Binding Name}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
                                         </ListBox>
                                         <UniformGrid Rows="1" Columns="2" Height="25" Margin="0,5,0,0">
-                                            <Button Content="Выбрать все" Margin="2"/>
-                                            <Button Content="Сбросить" Margin="2"/>
+                                            <Button Content="Выбранные" Margin="2" Command="{Binding SelectRegression.SelectAllAdditionalRegressor}"/>
+                                            <Button Content="Сбросить" Margin="2" Command="{Binding SelectRegression.ResetAdditionalRegressors}"/>
                                         </UniformGrid>
                                     </StackPanel>
                                 </GroupBox>
 
                                 <GroupBox Header="Истинные параметры" Grid.Column="3" Padding="5">
-                                    <ListBox Padding="2">
-                                        <ListBoxItem Width="Auto">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition ></RowDefinition>
-                                                </Grid.RowDefinitions>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="80"></ColumnDefinition>
-                                                    <ColumnDefinition Width="60"></ColumnDefinition>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock TextWrapping="Wrap" Text="Параметр 1:" Grid.Column="0"/>
-                                                <TextBox TextWrapping="Wrap" Text="5" HorizontalContentAlignment="Center" Grid.Column="1"/>
-                                            </Grid>
-                                        </ListBoxItem>
-                                        <ListBoxItem Width="Auto">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition ></RowDefinition>
-                                                </Grid.RowDefinitions>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="80"></ColumnDefinition>
-                                                    <ColumnDefinition Width="60"></ColumnDefinition>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock TextWrapping="Wrap" Text="Параметр 2:" Grid.Column="0"/>
-                                                <TextBox TextWrapping="Wrap" Text="5" HorizontalContentAlignment="Center" Grid.Column="1"/>
-                                            </Grid>
-                                        </ListBoxItem>
-                                        <ListBoxItem>
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition ></RowDefinition>
-                                                </Grid.RowDefinitions>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="80"></ColumnDefinition>
-                                                    <ColumnDefinition Width="60"></ColumnDefinition>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock TextWrapping="Wrap" Text="Параметр 3:" Grid.Column="0"/>
-                                                <TextBox TextWrapping="Wrap" Text="5" HorizontalContentAlignment="Center" Grid.Column="1"/>
-                                            </Grid>
-                                        </ListBoxItem>
-                                        <ListBoxItem>
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition ></RowDefinition>
-                                                </Grid.RowDefinitions>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="80"></ColumnDefinition>
-                                                    <ColumnDefinition Width="60"></ColumnDefinition>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock TextWrapping="Wrap" Text="Параметр 4:" Grid.Column="0"/>
-                                                <TextBox TextWrapping="Wrap" Text="5" HorizontalContentAlignment="Center" Grid.Column="1"/>
-                                            </Grid>
-                                        </ListBoxItem>
+                                    <ListBox Padding="2" ItemsSource="{Binding SelectRegression.TrueTheta}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition ></RowDefinition>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="80"></ColumnDefinition>
+                                                        <ColumnDefinition Width="60"></ColumnDefinition>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock TextWrapping="Wrap" Text="{Binding Name, StringFormat={}{0}:}" Grid.Column="0"/>
+                                                    <TextBox TextWrapping="Wrap" Text="{Binding Value, Mode=TwoWay}" HorizontalContentAlignment="Center" Grid.Column="1"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
                                     </ListBox>
                                 </GroupBox>
                             </Grid>
@@ -184,6 +142,10 @@
                                                     </DataTemplate>
                                                 </ComboBox.ItemTemplate>
                                             </ComboBox>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Количество вычислений"/>
+                                                <TextBox Text="{Binding CountIteration, Mode=TwoWay}" Margin="5,0,0,0"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </GroupBox>
                                     <GroupBox Header="Параметры" Grid.Column="1">
@@ -218,55 +180,43 @@
                                     </Grid.ColumnDefinitions>
                                     <GroupBox Header="Методы получения" Grid.Column="0">
                                         <StackPanel>
-                                            <ComboBox Width="178" Height="23" HorizontalAlignment="Center" Margin="0, 10" SelectedIndex="0">
+                                            <ComboBox Width="178" Height="23" HorizontalAlignment="Center" Margin="0, 10" SelectedIndex="{Binding DataMode, Mode=TwoWay}">
                                                 <TextBlock>Генерировать выборку</TextBlock>
-                                                <TextBlock>Генерировать D-оптимальный план</TextBlock>
-                                                <TextBlock>Генерировать А-оптимальный план</TextBlock>
                                                 <TextBlock>Загрузить выборку</TextBlock>
                                                 <TextBlock>Загрузить план</TextBlock>
                                             </ComboBox>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Padding="6,2" IsEnabled="False">
+                                                <Button Padding="6,2" Command="{Binding OpenFilePath}">
                                                     <TextBlock Text="Выбрать файл..."/>
                                                 </Button>
-                                                <TextBlock Text="Не выбрано" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                                                <TextBlock Text="{Binding FileData}" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Количесво наблюдений" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                <TextBox TextWrapping="Wrap" Text="{Binding CountObservations, Mode=TwoWay}" HorizontalContentAlignment="Center" Width="40"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </GroupBox>
                                     <GroupBox Header="Границы факторов" Grid.Column="1" Padding="2">
                                         <StackPanel>
-                                            <CheckBox x:Name="BoundsCheck" Content="Одинаковые границы" IsChecked="True"/>
+                                            <CheckBox x:Name="BoundsCheck" Content="Одинаковые границы" IsChecked="{Binding SelectRegression.SameBound, Mode=TwoWay}"/>
                                             <StackPanel Orientation="Horizontal" Margin="0, 5">
                                                 <TextBlock Text="Min:"/>
-                                                <TextBox Width="30" Text="-1" HorizontalContentAlignment="Center" Margin="5, 0" IsEnabled="{Binding ElementName=BoundsCheck, Path=IsChecked}"/>
+                                                <TextBox Width="30" Text="{Binding SelectRegression.SameFactorBound.Min, Mode=TwoWay}" HorizontalContentAlignment="Center" Margin="5, 0" IsEnabled="{Binding ElementName=BoundsCheck, Path=IsChecked}"/>
                                                 <TextBlock Text="Max: " Margin="10, 0, 0, 0"/>
-                                                <TextBox Width="30" Text="1" HorizontalContentAlignment="Center" Margin="5, 0, 0, 0" IsEnabled="{Binding ElementName=BoundsCheck, Path=IsChecked}"/>
+                                                <TextBox Width="30" Text="{Binding SelectRegression.SameFactorBound.Max, Mode=TwoWay}" HorizontalContentAlignment="Center" Margin="5, 0, 0, 0" IsEnabled="{Binding ElementName=BoundsCheck, Path=IsChecked}"/>
                                             </StackPanel>
-                                            <ListBox Margin="0, 5, 0, 0" Height="60" IsEnabled="{Binding ElementName=BoundsCheck, Path=IsChecked, Converter={StaticResource InverseBooleanConverter}}">
-                                                <ListBoxItem>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#1: Min: "/>
-                                                        <TextBox Width="30" Text="-1" HorizontalContentAlignment="Center"/>
-                                                        <TextBlock Text="Max:" Margin="5, 0"/>
-                                                        <TextBox Width="30" Text="1" HorizontalContentAlignment="Center"/>
-                                                    </StackPanel>
-                                                </ListBoxItem>
-                                                <ListBoxItem>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#2: Min: "/>
-                                                        <TextBox Width="30" Text="-1" HorizontalContentAlignment="Center"/>
-                                                        <TextBlock Text="Max:" Margin="5, 0"/>
-                                                        <TextBox Width="30" Text="1" HorizontalContentAlignment="Center"/>
-                                                    </StackPanel>
-                                                </ListBoxItem>
-                                                <ListBoxItem>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="#3: Min: "/>
-                                                        <TextBox Width="30" Text="-1" HorizontalContentAlignment="Center"/>
-                                                        <TextBlock Text="Max:" Margin="5, 0"/>
-                                                        <TextBox Width="30" Text="1" HorizontalContentAlignment="Center"/>
-                                                    </StackPanel>
-                                                </ListBoxItem>
+                                            <ListBox Margin="0, 5, 0, 0" Height="60" IsEnabled="{Binding ElementName=BoundsCheck, Path=IsChecked, Converter={StaticResource InverseBooleanConverter}}" ItemsSource="{Binding SelectRegression.FactorBounds}">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="#1: Min: "/>
+                                                            <TextBox Width="30" Text="{Binding Min, Mode=TwoWay}" HorizontalContentAlignment="Center"/>
+                                                            <TextBlock Text="Max:" Margin="5, 0"/>
+                                                            <TextBox Width="30" Text="{Binding Max, Mode=TwoWay}" HorizontalContentAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
                                             </ListBox>
                                         </StackPanel>
                                     </GroupBox>
@@ -286,24 +236,26 @@
                                 <StackPanel>
                                     <ComboBox Height="20" Width="220" HorizontalAlignment="Center" Margin="0, 10" SelectedIndex="0" >
                                         <TextBlock Text="F-test об ограничении параметров"/>
-                                        <TextBlock Text="F-test (LR модификация) об ограничении параметров"/>
                                     </ComboBox>
                                 </StackPanel>
                             </GroupBox>
                             <GroupBox Header="Метод оценивания параметров" Grid.Column="1">
                                 <StackPanel>
-                                    <ComboBox Height="20" Width="220" HorizontalAlignment="Center" Margin="0, 10" SelectedIndex="0" >
-                                        <TextBlock Text="Метод наименьших квадратов (МНК)"/>
-                                        <TextBlock Text="Метод максимального правдоподобия (ММК)"/>
+                                    <ComboBox Height="20" Width="220" HorizontalAlignment="Center" Margin="0, 10" ItemsSource="{Binding MethodsEvolution}" SelectedItem="{Binding SelectEvolution, Mode=TwoWay}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
                                     </ComboBox>
                                 </StackPanel>
                             </GroupBox>
                             <GroupBox Header="Округление измерений" Grid.Column="2" Padding="5">
                                 <StackPanel>
-                                    <CheckBox x:Name="RoundCheck" Content="Округлять измерения" IsChecked="False"/>
+                                    <CheckBox x:Name="RoundCheck" Content="Округлять измерения" IsChecked="{Binding RoundedCheck, Mode=TwoWay}"/>
                                     <StackPanel Orientation="Horizontal" Margin="0, 5, 0, 0">
                                         <TextBlock Text="Количество знаков:"/>
-                                        <TextBox Text="1" Width="30" HorizontalContentAlignment="Center" Margin="10,0,0,0" IsEnabled="{Binding ElementName=RoundCheck, Path=IsChecked}"/>
+                                        <TextBox Text="{Binding RoundedValue, Mode=TwoWay}" Width="30" HorizontalContentAlignment="Center" Margin="10,0,0,0" IsEnabled="{Binding ElementName=RoundCheck, Path=IsChecked}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </GroupBox>
@@ -319,10 +271,12 @@
                         </Grid.ColumnDefinitions>
                         <GroupBox Header="Выполнение" Padding="5" Grid.Column="0">
                             <StackPanel>
-                                <ProgressBar Height="30" Minimum="0" Maximum="100" Value="0" Grid.Column="0" Margin="5, 0, 0, 0"/>
+                                <TextBlock Text="{Binding TextProgress}"/>
+                                <ProgressBar Height="30" Minimum="0" Maximum="100" Value="{Binding ValueProgress}" Grid.Column="0" Margin="5, 0, 0, 0"/>
                                 <StackPanel Orientation="Horizontal" Margin="0, 10, 0, 0">
-                                    <Button Content="Расчитать" Margin="5, 0" Padding="6" Height="30" Grid.Column="1"/>
-                                    <Button Content="Прервать" Margin="0, 0, 5, 0" Padding="6" Height="30" Grid.Column="2"/>
+                                    <Button Content="Расчитать" Margin="5, 0" Padding="6" Height="30" Grid.Column="1" IsEnabled="{Binding StartButtonActive}" Command="{Binding StartCalculation}"/>
+                                    <Button Content="Прервать" Margin="0, 0, 5, 0" Padding="6" Height="30" Grid.Column="2" IsEnabled="{Binding ResetButtonActive}" Command="{Binding StopCalculation}"/>
+                                    <CheckBox Content="Параллельные вычисления" IsChecked="{Binding ParallelCheck, Mode=TwoWay}" Margin="5, 0, 0, 0"/>
                                 </StackPanel>
                             </StackPanel>
                         </GroupBox>
@@ -330,12 +284,12 @@
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0, 5">
                                     <TextBlock Text="Заголовок:" />
-                                    <TextBox Text="Распределение статистик критерия..." Width="200" Margin="10,0"/>
+                                    <TextBox Text="{Binding FileTitle, Mode=TwoWay}" Width="200" Margin="10,0"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0, 5">
                                     <TextBlock Text="Файл:" />
-                                    <TextBox Text="../H0_Exp_1000.dat" Width="150" HorizontalContentAlignment="Center" Margin="10,0"/>
-                                    <Button Content="Выбрать путь" Padding="3,0"/>
+                                    <TextBox Text="{Binding SavePath, Mode=TwoWay}" Width="150" HorizontalContentAlignment="Center" Margin="10,0"/>
+                                    <Button Content="Выбрать путь" Padding="3,0" Command="{Binding ChoiseFilePath}"/>
                                 </StackPanel>
                             </StackPanel>
                         </GroupBox>
@@ -343,9 +297,292 @@
                 </StackPanel>
             </ScrollViewer>
         </TabItem>
-        <TabItem Header="TabItem">
-            <Grid Background="#FFE5E5E5"/>
+        <TabItem Header="Распределение параметров">
+            <ScrollViewer>
+                <StackPanel >
+                    <StackPanel Margin="0,5,0,5" >
+                        <GroupBox Header="Выбор модели регресии">
+                            <Grid Height="150">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition></RowDefinition>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="28*"></ColumnDefinition>
+                                    <ColumnDefinition Width="24*"></ColumnDefinition>
+                                    <ColumnDefinition Width="24*"></ColumnDefinition>
+                                    <ColumnDefinition Width="24*"></ColumnDefinition>
+                                </Grid.ColumnDefinitions>
+                                <GroupBox Header="Тип регрессии" Grid.Column="0" Padding="5">
+                                    <StackPanel>
+                                        <ComboBox Width="178" HorizontalAlignment="Left" Margin="0,10,0,10" IsReadOnly="True" ItemsSource="{Binding Regressions}" SelectedItem="{Binding SelectRegression, Mode=TwoWay}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Name}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock TextWrapping="Wrap" Text="Количество факторов:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                            <TextBox TextWrapping="Wrap" Text="{Binding SelectRegression.CountFacts, Mode=TwoWay}" Width="50" VerticalAlignment="Center" HorizontalContentAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock TextWrapping="Wrap" Text="Свободный член:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                            <CheckBox IsChecked="{Binding SelectRegression.FreeMember, Mode=TwoWay}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock TextWrapping="Wrap" Text="Количество регрессоров:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                            <TextBlock TextWrapping="Wrap" Text="{Binding SelectRegression.CountRegressor}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </GroupBox>
+
+
+                                <GroupBox Header="Факторы" Grid.Column="1" Padding="5">
+                                    <StackPanel>
+                                        <ListBox Height="87" Padding="2" ItemsSource="{Binding SelectRegression.Factors}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox Margin="0, 0, 5, 0" IsChecked="{Binding Active, Mode=TwoWay}"/>
+                                                        <CheckBox Margin="0, 0, 5, 0" IsChecked="{Binding Check, Mode=TwoWay}"/>
+                                                        <TextBlock Text="{Binding Name}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        <UniformGrid Rows="1" Columns="2" Height="25" Margin="0,5,0,0">
+                                            <Button Content="Выбрать все" Margin="2" Command="{Binding SelectRegression.SelectAllFactors}"/>
+                                            <Button Content="Сбросить" Margin="2" Command="{Binding SelectRegression.ResetFactor}"/>
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </GroupBox>
+                                <GroupBox Header="Дополнительные регрессоры" Grid.Column="2" Padding="5">
+                                    <StackPanel>
+                                        <ListBox Padding="2" Height="87" ItemsSource="{Binding SelectRegression.AdditionalFactors}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox Margin="0, 0, 5, 0" IsChecked="{Binding Check, Mode=TwoWay}"/>
+                                                        <TextBlock Text="{Binding Name}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        <UniformGrid Rows="1" Columns="2" Height="25" Margin="0,5,0,0">
+                                            <Button Content="Выбранные" Margin="2" Command="{Binding SelectRegression.SelectAllAdditionalRegressor}"/>
+                                            <Button Content="Сбросить" Margin="2" Command="{Binding SelectRegression.ResetAdditionalRegressors}"/>
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </GroupBox>
+
+                                <GroupBox Header="Истинные параметры" Grid.Column="3" Padding="5">
+                                    <ListBox Padding="2" ItemsSource="{Binding SelectRegression.TrueTheta}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition ></RowDefinition>
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="80"></ColumnDefinition>
+                                                        <ColumnDefinition Width="60"></ColumnDefinition>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock TextWrapping="Wrap" Text="{Binding Name, StringFormat={}{0}:}" Grid.Column="0"/>
+                                                    <TextBox TextWrapping="Wrap" Text="{Binding Value, Mode=TwoWay}" HorizontalContentAlignment="Center" Grid.Column="1"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </GroupBox>
+                            </Grid>
+                        </GroupBox>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition ></RowDefinition>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="45*"></ColumnDefinition>
+                                <ColumnDefinition Width="55*"></ColumnDefinition>
+                            </Grid.ColumnDefinitions>
+                            <GroupBox Header="Распределение ошибок" Grid.Column="0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition ></RowDefinition>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="57*"></ColumnDefinition>
+                                        <ColumnDefinition Width="43*"></ColumnDefinition>
+                                    </Grid.ColumnDefinitions>
+                                    <GroupBox Header="Закон распределения">
+                                        <StackPanel>
+                                            <ComboBox Width="178" Height="23" HorizontalAlignment="Left" Margin="0,10,0,10" SelectedItem="{Binding SelectDistribution, Mode=TwoWay}" ItemsSource="{Binding ErrorDistibution}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Name}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Количество вычислений"/>
+                                                <TextBox Text="{Binding CountIteration, Mode=TwoWay}" Margin="5,0,0,0"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </GroupBox>
+                                    <GroupBox Header="Параметры" Grid.Column="1">
+                                        <ListBox ItemsSource="{Binding SelectDistribution.Parameters}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition ></RowDefinition>
+                                                        </Grid.RowDefinitions>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition ></ColumnDefinition>
+                                                            <ColumnDefinition Width="40"></ColumnDefinition>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock TextWrapping="Wrap" Text="{Binding Name, StringFormat={}{0}:}" Grid.Column="0" Margin="0, 0, 5, 0"/>
+                                                        <TextBox TextWrapping="Wrap" Text="{Binding Value, Mode=TwoWay}" HorizontalContentAlignment="Center" Grid.Column="1"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </GroupBox>
+                                </Grid>
+                            </GroupBox>
+                            <GroupBox Header="Выборка" Grid.Column="1">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition ></RowDefinition>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="47*"></ColumnDefinition>
+                                        <ColumnDefinition Width="53*"></ColumnDefinition>
+                                    </Grid.ColumnDefinitions>
+                                    <GroupBox Header="Методы получения" Grid.Column="0">
+                                        <StackPanel>
+                                            <ComboBox Width="178" Height="23" HorizontalAlignment="Center" Margin="0, 10" SelectedIndex="{Binding DataMode, Mode=TwoWay}">
+                                                <TextBlock>Генерировать выборку</TextBlock>
+                                                <TextBlock>Загрузить выборку</TextBlock>
+                                                <TextBlock>Загрузить план</TextBlock>
+                                            </ComboBox>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Padding="6,2" Command="{Binding OpenFilePath}">
+                                                    <TextBlock Text="Выбрать файл..."/>
+                                                </Button>
+                                                <TextBlock Text="{Binding FileData}" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Количесво наблюдений" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                <TextBox TextWrapping="Wrap" Text="{Binding CountObservations, Mode=TwoWay}" HorizontalContentAlignment="Center" Width="40"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </GroupBox>
+                                    <GroupBox Header="Границы факторов" Grid.Column="1" Padding="2">
+                                        <StackPanel>
+                                            <CheckBox Content="Одинаковые границы" IsChecked="{Binding SelectRegression.SameBound, Mode=TwoWay}"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0, 5">
+                                                <TextBlock Text="Min:"/>
+                                                <TextBox Width="30" Text="{Binding SelectRegression.SameFactorBound.Min, Mode=TwoWay}" HorizontalContentAlignment="Center" Margin="5, 0" IsEnabled="{Binding ElementName=BoundsCheck, Path=IsChecked}"/>
+                                                <TextBlock Text="Max: " Margin="10, 0, 0, 0"/>
+                                                <TextBox Width="30" Text="{Binding SelectRegression.SameFactorBound.Max, Mode=TwoWay}" HorizontalContentAlignment="Center" Margin="5, 0, 0, 0" IsEnabled="{Binding ElementName=BoundsCheck, Path=IsChecked}"/>
+                                            </StackPanel>
+                                            <ListBox Margin="0, 5, 0, 0" Height="60" IsEnabled="{Binding SelectRegression.SameBound, Converter={StaticResource InverseBooleanConverter}}" ItemsSource="{Binding SelectRegression.FactorBounds}">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="#1: Min: "/>
+                                                            <TextBox Width="30" Text="{Binding Min, Mode=TwoWay}" HorizontalContentAlignment="Center"/>
+                                                            <TextBlock Text="Max:" Margin="5, 0"/>
+                                                            <TextBox Width="30" Text="{Binding Max, Mode=TwoWay}" HorizontalContentAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </StackPanel>
+                                    </GroupBox>
+                                </Grid>
+                            </GroupBox>
+                        </Grid>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition ></RowDefinition>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="33*"></ColumnDefinition>
+                                <ColumnDefinition Width="33*"></ColumnDefinition>
+                                <ColumnDefinition Width="33*"></ColumnDefinition>
+                            </Grid.ColumnDefinitions>
+                            <GroupBox Header="Критрий" Grid.Column="0">
+                                <StackPanel>
+                                    <CheckBox Content="Все параметры" IsChecked="{Binding AllParameter, Mode=TwoWay}"/>
+                                    <ListBox Margin="0,5,0,0" ItemsSource="{Binding SelectedParameters}" IsEnabled="{Binding AllParameter, Converter={StaticResource InverseBooleanConverter}}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding Selected, Mode=TwoWay}"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="Метод оценивания параметров" Grid.Column="1">
+                                <StackPanel>
+                                    <ComboBox Height="20" Width="220" HorizontalAlignment="Center" Margin="0, 10" ItemsSource="{Binding MethodsEvolution}" SelectedItem="{Binding SelectEvolution, Mode=TwoWay}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                            </GroupBox>
+                            <GroupBox Header="Округление измерений" Grid.Column="2" Padding="5">
+                                <StackPanel>
+                                    <CheckBox Content="Округлять измерения" IsChecked="{Binding RoundedCheck, Mode=TwoWay}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0, 5, 0, 0">
+                                        <TextBlock Text="Количество знаков:"/>
+                                        <TextBox Text="{Binding RoundedValue, Mode=TwoWay}" Width="30" HorizontalContentAlignment="Center" Margin="10,0,0,0" IsEnabled="{Binding RoundedCheck}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </GroupBox>
+                        </Grid>
+                    </StackPanel>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition ></RowDefinition>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="60*"></ColumnDefinition>
+                            <ColumnDefinition Width="40*"></ColumnDefinition>
+                        </Grid.ColumnDefinitions>
+                        <GroupBox Header="Выполнение" Padding="5" Grid.Column="0">
+                            <StackPanel>
+                                <TextBlock Text="{Binding TextProgressParam}"/>
+                                <ProgressBar Height="30" Minimum="0" Maximum="100" Value="{Binding ValueProgressParam}" Grid.Column="0" Margin="5, 0, 0, 0"/>
+                                <StackPanel Orientation="Horizontal" Margin="0, 10, 0, 0">
+                                    <Button Content="Расчитать" Margin="5, 0" Padding="6" Height="30" Grid.Column="1" IsEnabled="{Binding StartButtonParamActive}" Command="{Binding StartCalculationParam}"/>
+                                    <Button Content="Прервать" Margin="0, 0, 5, 0" Padding="6" Height="30" Grid.Column="2" IsEnabled="{Binding ResetButtonParamActive}" Command="{Binding StopCalculationParam}"/>
+                                    <CheckBox Content="Параллельные вычисления" IsChecked="{Binding ParallelCheck, Mode=TwoWay}" Margin="5, 0, 0, 0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Сохранение" Grid.Column="1" Padding="5">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0, 5">
+                                    <TextBlock Text="Заголовок:" />
+                                    <TextBox Text="{Binding FileTitleParam, Mode=TwoWay}" Width="200" Margin="10,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0, 5">
+                                    <TextBlock Text="Файл:" />
+                                    <TextBox Text="{Binding SavePath, Mode=TwoWay}" Width="150" HorizontalContentAlignment="Center" Margin="10,0"/>
+                                    <Button Content="Выбрать путь" Padding="3,0" Command="{Binding ChoiseFilePath}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </GroupBox>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
         </TabItem>
-        <Grid Height="434" Width="800"/>
     </TabControl>
 </Window>

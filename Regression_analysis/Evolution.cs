@@ -1,7 +1,12 @@
 ﻿using System.Diagnostics;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+
+using MathNet.Numerics.Distributions;
+using MathNet.Numerics.Optimization;
 
 namespace Regression_analysis
 {
@@ -11,6 +16,68 @@ namespace Regression_analysis
         public abstract Vectors EstimateParameters(IModel model, Vectors[] otherParameters);
     }
 
+
+    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+    public class EvolutionAttribute : Attribute
+    {
+        public string Name { get; }
+
+        public EvolutionAttribute(string name)
+        {
+            Name = name;
+        }
+    }
+
+
+    public class EvolutionFactory
+    {
+        private readonly Dictionary<string, IParameterEstimator> _evolutions;
+
+        public EvolutionFactory()
+        {
+            _evolutions = [];
+            LoadEvolutions();
+        }
+
+        private void LoadEvolutions()
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+
+            foreach (var type in assembly.GetTypes()
+                .Where(t => typeof(IParameterEstimator).IsAssignableFrom(t)
+                        && !t.IsInterface
+                        && !t.IsAbstract))
+            {
+                var attr = type.GetCustomAttribute<EvolutionAttribute>();
+                if (attr == null) continue;
+
+                try
+                {
+                    var instance = Activator.CreateInstance(type) as IParameterEstimator;
+#pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+                    _evolutions[attr.Name] = instance;
+#pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to create {attr.Name}: {ex.Message}");
+                }
+            }
+        }
+        public IParameterEstimator GetEvolution(string type)
+        {
+            return _evolutions.TryGetValue(type, out var evolution)
+                ? evolution
+                : throw new KeyNotFoundException($"Evolution {type} not found");
+        }
+
+        public IEnumerable<(string Name, IParameterEstimator Instance)> GetAllEvolutions()
+        {
+            return _evolutions.Select(kv => (kv.Key, kv.Value));
+        }
+    }
+
+    [Evolution("Метод наименьших квадратов (МНК)")]
     public class MNKEstimator : IParameterEstimator {
         public string Name => "MNK";
 
@@ -41,11 +108,12 @@ namespace Regression_analysis
         }
     }
 
-    public class MMKEstimator(MMKConfiguration config) : IParameterEstimator 
+    [Evolution("Метод максимального правдоподобия (ММП)")]
+    public class MMKEstimator : IParameterEstimator 
     {
-        public readonly MMKConfiguration Config = config ?? throw new ArgumentNullException(nameof(config));
+        public MMKConfiguration Config { get; set; } = MMKConfigLoader.Normal();
 
-        public string Name => "MMK";
+        public string Name => "MMP";
 
         public Vectors EstimateParameters(IModel model, Vectors[] otherParameters)
         {
@@ -96,7 +164,6 @@ namespace Regression_analysis
                         Config.Functions.Gradient,
                         model,
                         otherParameters,
-                        (1, model.CountRegressor),
                         Config.Tolerance,
                         maxIter: Config.MaxIteration,
                         seed: Config.Seed,
@@ -196,7 +263,7 @@ namespace Regression_analysis
             return new MMKConfiguration()
             {
                 Functions = new CauchyMMKDistribution(),
-                Oprimizator = new NelderMeadOptimizator(),
+                Oprimizator = new DFPOptimizator(),
                 Mean = CauchyDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
                 MaxAttempts = maxattepts,
@@ -248,13 +315,73 @@ namespace Regression_analysis
                 Seed = seed
             };
         }
+        public static MMKConfiguration Load(
+            TypeDisribution typeDisribution,
+            bool ismultiiteration = true,
+            int maxattepts = 100,
+            int maxiteration = 1000,
+            double tol = 1e-7,
+            int? seed = null
+            )
+        {
+            switch (typeDisribution) {
+                case TypeDisribution.Normal:
+                    return MMKConfigLoader.Normal(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                case TypeDisribution.Laplace:
+                    return MMKConfigLoader.Laplace(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                case TypeDisribution.Exponential:
+                    return MMKConfigLoader.Exponential(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                case TypeDisribution.Cauchy:
+                    return MMKConfigLoader.Cauchy(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                case TypeDisribution.Uniform:
+                    return MMKConfigLoader.Uniform(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                case TypeDisribution.Gamma:
+                    return MMKConfigLoader.Gamma(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                default:
+                    throw new ArgumentException("Нет такого распределения");
+            }
+        }
     }
+
+    public static class NumericGradient {
+        public static Vectors ComputeGradient(LogLikelihoodFunction f, Vectors x, IModel model, Vectors[] parameters ,double h = 1e-5)
+        {
+            int n = x.Size;
+            Vectors gradient = Vectors.InitVectors((1, n));
+            Vectors xPh = x.Clone();
+            Vectors xMh = x.Clone();
+
+            for (int i = 0; i < n; i++)
+            {
+                // Сохраняем исходное значение
+                double originalValue = x[i];
+
+                // Вычисляем f(x + h)
+                xPh[i] = originalValue + h;
+                double fPh = f(model, xPh, parameters);
+
+                // Вычисляем f(x - h)
+                xMh[i] = originalValue - h;
+                double fMh = f(model, xMh, parameters);
+
+                // Центральная разностная производная
+                gradient[i] = (fPh - fMh) / (2 * h);
+
+                // Восстанавливаем значение
+                xPh[i] = originalValue;
+                xMh[i] = originalValue;
+            }
+
+            return gradient;
+        }
+    }
+
 
     public static class Test {
         public static void Main(string[] args) {
             
             string h = "H0";
-            var n = 1000;
+            var n = 80;
             var thetaH0 = new Vectors([5, 2, 3, 7]);
             var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n)) ;
             var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
@@ -264,7 +391,7 @@ namespace Regression_analysis
             //var e = LaplaceDistribution.Generate((1, 10000), paramDistribution, new Random());
             //e.SaveToDAT($"D:/Program/Budancev/ОР/Samples/Laplace.dat", "Laplace (0, 30)");
             
-            /*
+            
             Vectors planX = new Vectors([[-1, -1, -1],
                                         [1, -1, -1],
                                         [-1, 1, -1],
@@ -280,10 +407,68 @@ namespace Regression_analysis
                         (
                             3,
                             [],
+                            [],
                             thetaH0,
                             true
                         );
 
+            var rand = new Random();
+            var error = new GammaDistribution();
+            var e = error.Generate((1, n), paramDistribution);
+            var X = LinespaceRandom.Generate((n, model.CountFacts), [(-10, 10)], rand);
+            var y = (model.CreateMatrixX(X) & model.TrueTheta.T()).T() + e;
+            var func = new GammaMMKDistribution();
+
+            //var x0 = new Vectors([1, 2, 5, 9]);
+
+            var opt1 = new CGOptimizator();
+            var opt2 = new NelderMeadOptimizator();
+            var opt3 = new DFPOptimizator();
+
+            var MNK = new MNKEstimator();
+            var calc_theta = MNK.EstimateParameters(model, [paramDistribution, X, y]);
+
+            var clock = new Stopwatch();
+            clock.Start();
+            var result0 = opt1.Optimisate(
+                    func.LogLikelihood,
+                    func.Gradient,
+                    model,
+                    calc_theta,
+                    [paramDistribution, X, y],
+                    1e-7
+                );
+            clock.Stop();
+            Console.WriteLine($"Первое время: {clock.ElapsedMilliseconds}");
+            clock.Restart();
+            var result1 = opt2.Optimisate(
+                    func.LogLikelihood,
+                    func.Gradient,
+                    model,
+                    calc_theta,
+                    [paramDistribution, X, y],
+                    1e-7
+                );
+            clock.Stop();
+            Console.WriteLine($"Второе время: {clock.ElapsedMilliseconds}");
+            clock.Restart();
+            var result2 = opt3.Optimisate(
+                    func.LogLikelihood,
+                    func.Gradient,
+                    model,
+                    calc_theta,
+                    [paramDistribution, X, y]
+                );
+            clock.Stop();
+            Console.WriteLine($"Третье время: {clock.ElapsedMilliseconds}");
+            Console.WriteLine(result0 + "\n");
+            Console.WriteLine(result1 + "\n");
+            Console.WriteLine(result2 + "\n");
+            Console.WriteLine($"Значение функции для первого оптимизатора: {func.LogLikelihood(model, result0.MinPoint, [paramDistribution, X, y])}");
+            Console.WriteLine($"Значение функции для второго оптимизатора: {func.LogLikelihood(model, result1.MinPoint, [paramDistribution, X, y])}");
+            Console.WriteLine($"Значение функции для второго оптимизатора: {func.LogLikelihood(model, result2.MinPoint, [paramDistribution, X, y])}");
+
+            /*
             var rand = new Random();
             var opt1 = new CGOptimizator();
             var opt2 = new NelderMeadOptimizator();
@@ -337,8 +522,8 @@ namespace Regression_analysis
             //string json = JsonSerializer.Serialize(res, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true});
             //File.WriteAllText($"/home/zodiac/Program/ОР/Samples/CompareMethods_Laplace_{n}.json", json);
             //Console.WriteLine(json);
-            
-            
+
+            /*
             Vectors planX = new Vectors([[-1, -1, -1],
                                         [1, -1, -1],
                                         [-1, 1, -1],
@@ -415,7 +600,7 @@ namespace Regression_analysis
                 statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H1_MMKLaplace{n}_lr.dat"), title: "H1 " + statistic.ToString());
                 
             }
-            
+            */
         }
     }
 }

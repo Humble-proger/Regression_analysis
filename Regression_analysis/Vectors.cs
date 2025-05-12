@@ -237,6 +237,53 @@ namespace Regression_analysis
             return index;
         }
 
+        public static Vectors MSG(Vectors A, Vectors b, Vectors? x0 = null, double tol = 1e-7, int maxIter = 500)
+        {
+            int n = b.Size;
+            Vectors x = x0 != null ? x0.Clone() : Vectors.Zeros(b.Shape);
+            Vectors r = b - (A & x.T()).T();  // Начальная невязка r = b - Ax
+            Vectors p = r.Clone();
+
+            double rsold = r.Dot(r.T())[0];
+            double bnorm = Vectors.Norm(b);
+            if (bnorm < double.Epsilon) bnorm = 1; // Защита от нулевой правой части
+
+            int iter = 0;
+            while (iter < maxIter)
+            {
+                Vectors Ap = (A & p.T());
+                double alpha = rsold / p.Dot(Ap)[0];
+
+                x = x + (p * alpha);
+                r = r - (Ap.T() * alpha);
+
+                double rsnew = r.Dot(r.T())[0];
+                if (Math.Sqrt(rsnew) / bnorm < tol)
+                    break;
+
+                double beta = rsnew / rsold;
+                p = r + (p * beta);
+
+                rsold = rsnew;
+                iter++;
+            }
+
+            return x;
+        }
+
+        public static double ScalarMult(Vectors v1, Vectors v2)
+        {
+            if (v1.Shape.Item1 == 1 && v2.Shape.Item1 == 1 && v1.Shape.Item2 == v2.Shape.Item2)
+            {
+                var summator = 0.0;
+                for (var i = 0; i < v1.Shape.Item2; i++)
+                    summator += v1[0, i] * v2[0, i];
+                return summator;
+            }
+            else throw new Exception("Incorrect shapes vectors.");
+        }
+
+
         public static int SecondMaxIndex(Vectors vec, int excludeIndex)
         {
             double max = double.MinValue;
@@ -679,6 +726,16 @@ namespace Regression_analysis
 
         public double[][] ToArray() {
             return (double[][]) _values.Clone();
+        }
+
+        public Vectors Clone() {
+            var result = Vectors.InitVectors(Shape);
+            for (int i = 0; i < Shape.Item1; i++) {
+                for (int j = 0; j < Shape.Item2; j++) {
+                    result[i, j] = this[i, j];
+                }
+            }
+            return result;
         }
 
         public override string? ToString()

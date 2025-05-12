@@ -1,5 +1,9 @@
 ﻿
+using System.Net.Http.Headers;
+using System.Reflection.Metadata;
 using System.Security.Cryptography;
+
+using MathNet.Numerics.Optimization;
 
 using Microsoft.VisualBasic.FileIO;
 
@@ -25,7 +29,6 @@ namespace Regression_analysis
             LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors[] @params,
-            (int, int) shapeInitParam,
             double eps,
             double minValue = -10,
             double maxValue = 10,
@@ -38,24 +41,26 @@ namespace Regression_analysis
     public struct OptRes
     {
         public Vectors MinPoint;
-        public double MinValueFunction;
         public int NumIteration;
         public double Tol;
         public int CountCalcFunc;
+        public int CountCalcGradient;
+        public int CountCalcHessian;
         public bool Convergence;
         public double? Norm;
         public override readonly string ToString()
         {
-            return $"Результат оптимизации:\nНайденный минимум: {MinPoint};\nЗначение функции: {MinValueFunction};\nКоличество итераций: {NumIteration};\nКоличество подсчёта функции: {CountCalcFunc};\n{(Norm != null ? $"Полученная норма: {Norm};\n" : "")}Сошлось: {(Convergence ? "Да" : "Нет")};\nТочность: {Tol}";
+            return $"Результат оптимизации:\nНайденный минимум: {MinPoint};\nКоличество итераций: {NumIteration};\nКоличество подсчёта функции: {CountCalcFunc};\nКоличество подсчёта градиента: {CountCalcGradient};\nКоличество подсчёта гессиана: {CountCalcHessian};\n{(Norm != null ? $"Полученная норма: {Norm};\n" : "")}Сошлось: {(Convergence ? "Да" : "Нет")};\nТочность: {Tol}";
         }
     }
     public struct OptResExtended
     {
         public Vectors MinPoint;
-        public double MinValueFunction;
         public int NumIteration;
         public double Tol;
         public int CountCalcFunc;
+        public int CountCalcGradient;
+        public int CountCalcHessian;
         public bool Convergence;
         public double? Norm;
         public Vectors InitParametrs;
@@ -63,73 +68,96 @@ namespace Regression_analysis
 
         public override readonly string ToString()
         {
-            return $"Результат оптимизации:\nНайденный минимум: {MinPoint};\nЗначение функции: {MinValueFunction};\nНачальные значения: {InitParametrs};\nКоличество подбора начальных значений: {NumberRebounds};\nКоличество итераций: {NumIteration};\nКоличество подсчёта функции: {CountCalcFunc};\n{(Norm != null ? $"Полученная норма: {Norm};\n" : "")}Сошлось: {(Convergence ? "Да" : "Нет")};\nТочность: {Tol}";
+            return $"Результат оптимизации:\nНайденный минимум: {MinPoint};\nНачальные значения: {InitParametrs};\nКоличество подбора начальных значений: {NumberRebounds};\nКоличество итераций: {NumIteration};\nКоличество подсчёта функции: {CountCalcFunc};\nКоличество подсчёта градиента: {CountCalcGradient};\nКоличество подсчёта гессиана: {CountCalcHessian};\n{(Norm != null ? $"Полученная норма: {Norm};\n" : "")}Сошлось: {(Convergence ? "Да" : "Нет")};\nТочность: {Tol}";
         }
     }
 
     public static class QuadraticInterpolation
     {
-        private static double Min(params double[] numbers) => numbers.Min();
+        //private static double Min(params double[] numbers) => numbers.Min();
         public static OptRes Optimisate(
             LogLikelihoodFunction func,
+            LogLikelihoodGradient grad,
             IModel model,
             Vectors[] @params,
             Vectors xk,
             Vectors pk,
-            double eps= 1e-7,
-            int maxIter = 100,
-            double minalpha = 1e-8,
-            double maxalpha = 1.0)
+            double initialAlpha,
+            double eps= 1e-4,
+            int maxIter = 20
+            )
         {
-            OptRes result = new()
+            OptRes result = new OptRes()
             {
-                Tol = eps,
-                CountCalcFunc = 0,
+                CountCalcFunc = 2,
+                CountCalcGradient = 1,
                 NumIteration = 0,
+                Tol = eps,
                 Convergence = false
             };
-            double Func(double alpha) => func(model, xk + alpha * pk, @params);
-            if (maxIter < 1)
-            {
-                result.MinPoint = new Vectors([(minalpha + maxalpha) / 2]);
-                result.MinValueFunction = Func(result.MinPoint[0]);
-                return result;
-            };
-            double[] x = [minalpha, (minalpha + maxalpha) / 2, maxalpha];
-            double[] f = [Func(x[0]), Func(x[1]), Func(x[2])];
-            (double, double)[] temp_arr = [(0, 0.5)];
-            result.CountCalcFunc += 3;
-            double numerator, denominator, xmin, temp1, temp2, temp3, temp4, funcMin;
-            for (; result.NumIteration < maxIter; result.NumIteration++)
-            {
-                temp1 = x[1] - x[0]; temp2 = x[1] - x[2];
-                temp3 = f[1] - f[0]; temp4 = f[1] - f[2];
-                numerator = temp1 * temp1 * temp4 - temp2 * temp2 * temp3;
-                denominator = 2 * (temp1 * temp4 - temp2 * temp3);
-                if (double.Abs(denominator) < double.Epsilon)
-                {
-                    result.MinPoint = new Vectors([temp_arr[0].Item2]);
-                    result.MinValueFunction = temp_arr[0].Item1;
-                    return result;
-                }
-                xmin = x[1] - numerator / denominator;
-                funcMin = Func(xmin); result.CountCalcFunc++;
-                temp_arr = [(f[0], x[0]), (f[1], x[1]), (f[2], x[2]), (funcMin, xmin)];
-                temp_arr = [.. temp_arr.OrderBy(x => x.Item1)];
-                if (double.Abs((Min(f[0], f[1], f[2]) - funcMin) / funcMin) < eps)
-                {
-                    result.MinPoint = new Vectors([temp_arr[0].Item2]);
-                    result.MinValueFunction = temp_arr[0].Item1;
-                    result.Convergence = true;
-                    return result;
+            // Начальные точки для интерполяции
+            double alpha0 = 0;
 
+            Vectors Gradient(Vectors x) => grad(model, x, @params);
+            double Function(Vectors x) => func(model, x, @params);
+
+            double f0 = Function(xk);
+            double g0 = Gradient(xk).Dot(pk.T())[0];
+
+            if (g0 >= 0)
+                throw new ArgumentException("Direction is not a descent direction");
+
+            double alpha1 = initialAlpha;
+            double f1 = Function(xk + (pk * alpha1));
+
+            int iter = 0;
+            while (iter < maxIter)
+            {
+                // Квадратичная интерполяция
+                double alpha = QuadraticInterpolationStep(alpha0, f0, g0, alpha1, f1);
+
+                // Ограничение максимального шага
+                alpha = Math.Min(alpha, 10 * alpha1);
+
+                // Проверка условия Армихо
+                double fAlpha = Function(xk + (pk * alpha));
+                result.CountCalcFunc++;
+                if (fAlpha <= f0 + eps * alpha * g0) {
+                    result.Convergence = true;
+                    result.MinPoint = new Vectors([alpha]);
+                    return result;
                 }
-                x = (from v in temp_arr select v.Item2).Take(3).ToArray();
-                f = (from v in temp_arr select v.Item1).Take(3).ToArray();
+
+                // Подготовка к следующей итерации
+                if (fAlpha < f1 || alpha1 == initialAlpha)
+                {
+                    alpha0 = alpha1;
+                    f0 = f1;
+                    alpha1 = alpha;
+                    f1 = fAlpha;
+                }
+                else
+                {
+                    alpha1 = alpha;
+                    f1 = fAlpha;
+                }
+
+                iter++;
             }
-            result.MinPoint = new Vectors([temp_arr[0].Item2]);
-            result.MinValueFunction = temp_arr[0].Item1;
+
+            result.MinPoint = new Vectors([alpha1]);
             return result;
+        }
+
+        private static double QuadraticInterpolationStep(double alpha0, double f0, double g0,
+                                               double alpha1, double f1)
+        {
+            // Квадратичная интерполяция между alpha0 и alpha1
+            double denominator = 2 * (f1 - f0 - g0 * (alpha1 - alpha0));
+            if (denominator <= 0)
+                return (alpha0 + alpha1) / 2; // Если интерполяция неудачна, берем середину
+
+            return alpha0 - g0 * Math.Pow(alpha1 - alpha0, 2) / denominator;
         }
     }
 
@@ -161,7 +189,6 @@ namespace Regression_analysis
             if (maxIter < 1)
             {
                 result.MinPoint = new Vectors([(minalpha + maxalpha) / 2]);
-                result.MinValueFunction = Func(result.MinPoint[0]);
                 result.CountCalcFunc++;
                 return result;
             }
@@ -180,7 +207,6 @@ namespace Regression_analysis
                 if (Math.Abs(b - a) < eps)
                 {
                     result.MinPoint = new Vectors([(a + b) / 2]);
-                    result.MinValueFunction = Func(result.MinPoint[0]);
                     result.CountCalcFunc++;
                     result.Convergence = true;
                     return result;
@@ -205,7 +231,6 @@ namespace Regression_analysis
             }
 
             result.MinPoint = new Vectors([(a + b) / 2]);
-            result.MinValueFunction = Func(result.MinPoint[0]);
             result.CountCalcFunc++;
             return result;
         }
@@ -241,69 +266,96 @@ namespace Regression_analysis
             )
         {
             if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
-            double alphaK = 1.0, w;
-            Vectors xk = x0, xkp1, gfk = dffunc(model, x0, @params), gfkp1, pk = -gfk, deltaX, deltaG;
-            int iter = 0, calcFunc = 0; double norm = double.MaxValue;
-            OptRes linRes;
-            //bool debag = true;
-            //double funcvalue = func(model, x0, @params), oldfuncvalue = double.MaxValue;
-            Vectors DfFunc(Vectors x0) => dffunc(model, x0, @params);
 
-            OptRes FindOptAlpha(Vectors xk, Vectors pk) => GoldenSection.Optimize(func, model, @params, xk, pk, maxIter: 100);
+            Vectors Gradient(Vectors x) => dffunc(model, x, @params);
+            int n = x0.Size;
+            Vectors xk = x0.Clone();
+            Vectors gfk = Gradient(xk);
+            Vectors pk = -gfk;
 
-            double oldfunc = func(model, xk, @params), newfunc, c1 = 1e-4, c2 = 0.9, temp;
-
-            Console.WriteLine($"Начальное приближение: {x0}");
-
-            OptRes optRes = optRes = FindOptAlpha(xk, pk);
-            calcFunc += optRes.CountCalcFunc;
-            alphaK = optRes.MinPoint[0];
-
-            for (; norm > eps && iter < maxIter; iter++)
+            OptRes result = new OptRes()
             {
-                //linRes = FindOptAlpha(xk, pk);
-                //alphaK = linRes.MinPoint[0];
-                //calcFunc += linRes.CountCalcFunc;
-                xkp1 = xk + alphaK * pk;
-                norm = Vectors.Norm(xkp1 - xk);
-                gfkp1 = DfFunc(xkp1);
-
-                newfunc = func(model, xkp1, @params);
-                temp = (gfk & pk.T())[0];
-                if (newfunc > oldfunc + c1 * alphaK * temp)
-                {
-                    alphaK *= 0.5;
-                }
-                else if ((gfkp1 & pk.T())[0] < c2 * temp)
-                {
-                    alphaK *= 1.5;
-                }
-
-                alphaK = double.Max(eps, double.Min(alphaK, 1));
-
-                w = ScalarMult(gfkp1, gfkp1) / ScalarMult(gfk, gfk);
-                pk = (gfkp1 - w * pk) * -1;
-                
-                //deltaX = xkp1 - xk;
-                //deltaG = gfkp1 - gfk;
-                //alphaK = (deltaX & deltaG.T())[0] / (deltaG & deltaG.T())[0];
-                
-
-                (xk, gfk) = (xkp1, gfkp1);
-                oldfunc = newfunc;
-            }
-            OptRes temp_res = new()
-            {
-                MinPoint = xk,
-                MinValueFunction = func(model, xk, @params),
-                CountCalcFunc = calcFunc,
-                NumIteration = iter,
-                Tol = eps,
-                Norm = norm,
-                Convergence = Vectors.Norm(pk) < eps
+                CountCalcFunc = 0,
+                CountCalcGradient = 1,
+                Norm = Vectors.Norm(gfk),
+                NumIteration = 0
             };
-            Console.WriteLine(temp_res.MinValueFunction);
-            return temp_res;
+            int stepsSinceReset = 0;
+
+            while (result.Norm > eps && result.NumIteration < maxIter)
+            {
+                //OptRes linResult = QuadraticInterpolation.Optimisate(func, dffunc, model, @params, xk, pk, 1.0);
+                
+                //result.CountCalcGradient += linResult.CountCalcGradient;
+                //result.CountCalcFunc += linResult.CountCalcFunc;
+                double alpha = LineSearch(func, dffunc, model, @params, xk, pk);
+
+                Vectors xkp1 = xk + alpha * pk;
+                result.Norm = Vectors.Norm(xkp1 - xk);
+                Vectors gfkp1 = Gradient(xkp1);
+
+                stepsSinceReset++;
+                if (stepsSinceReset < (2 * n))
+                {
+                    double w = ScalarMult(gfkp1, gfkp1) / double.Max(ScalarMult(gfk, gfk), double.Epsilon);
+                    pk = (-gfkp1 + w * pk);
+                }
+                else {
+                    pk = -gfkp1;
+                    stepsSinceReset = 0;
+                }
+                (xk, gfk) = (xkp1, gfkp1);
+                result.NumIteration++;
+            }
+
+            result.Convergence = result.Norm < eps;
+            result.MinPoint = xk;
+            return result;
+        }
+
+
+        private double LineSearch(
+            LogLikelihoodFunction f,
+            LogLikelihoodGradient grad,
+            IModel model,
+            Vectors[] parameters,
+            Vectors x, 
+            Vectors d,
+            int maxIter = 20,
+            double tol = 1e-4
+            )
+        {
+            double alpha = 1.0;
+            double c = 0.1; // Параметр для условия Армихо
+            double rho = 0.5; // Коэффициент уменьшения шага
+
+            Vectors Gradient(Vectors x) => grad(model, x, parameters);
+            double Function(Vectors x) => f(model, x, parameters);
+
+
+            double f0 = Function(x);
+            Vectors g0 = Gradient(x);
+            double slope0 = g0.Dot(d.T())[0];
+
+            for (int i = 0; i < maxIter; i++)
+            {
+                Vectors xNew = x + (d * alpha);
+                double fAlpha = Function(xNew);
+
+                // Квадратичная интерполяция
+                if (i > 0 && fAlpha > f0 + c * alpha * slope0)
+                {
+                    double alphaQuad = -slope0 * alpha * alpha / (2 * (fAlpha - f0 - slope0 * alpha));
+                    alpha = Math.Max(alphaQuad, alpha * rho);
+                }
+
+                if (fAlpha <= f0 + c * alpha * slope0)
+                    return alpha;
+
+                alpha *= rho;
+            }
+
+            return alpha;
         }
 
         public OptResExtended OptimisateRandomInit(
@@ -311,7 +363,6 @@ namespace Regression_analysis
             LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors[] @params,
-            (int, int) shapeInitParam,
             double eps,
             double minValue = -10,
             double maxValue = 10,
@@ -336,7 +387,7 @@ namespace Regression_analysis
             for (; result.NumberRebounds < maxIter && !result.Convergence; result.NumberRebounds++)
             {
                 #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
-                result.InitParametrs = rand.Generate(shapeInitParam, tmp);
+                result.InitParametrs = rand.Generate((1, model.CountRegressor), tmp);
                 #pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
@@ -345,7 +396,6 @@ namespace Regression_analysis
                 {
                     result.Convergence = true;
                     result.MinPoint = resMethod.MinPoint;
-                    result.MinValueFunction = resMethod.MinValueFunction;
                     result.NumIteration = resMethod.NumIteration;
                     result.Norm = resMethod.Norm;
                     result.CountCalcFunc += resMethod.CountCalcFunc;
@@ -356,14 +406,10 @@ namespace Regression_analysis
                     {
                         result.Norm = resMethod.Norm;
                         result.MinPoint = resMethod.MinPoint;
-                        result.MinValueFunction = resMethod.MinValueFunction;
                         result.NumIteration = resMethod.NumIteration;
                     }
                     result.CountCalcFunc += resMethod.CountCalcFunc;
                 }
-                Console.WriteLine(result.NumberRebounds);
-                Console.WriteLine(resMethod.Norm);
-                Console.WriteLine(resMethod.MinPoint);
             }
             return result;
         }
@@ -375,226 +421,109 @@ namespace Regression_analysis
 
         public bool IsUseGradient => true;
 
-        private static double ScalarMult(Vectors v1, Vectors v2)
-        {
-            if (v1.Shape.Item1 == 1 && v2.Shape.Item1 == 1 && v1.Shape.Item2 == v2.Shape.Item2)
-            {
-                var summator = 0.0;
-                for (var i = 0; i < v1.Shape.Item2; i++)
-                    summator += v1[0, i] * v2[0, i];
-                return summator;
-            }
-            else throw new Exception("Incorrect shapes vectors.");
-        }
-
-        public OptRes OptimisateH(
-            LogLikelihoodFunction func,
-            LogLikelihoodGradient? dffunc,
-            IModel model,
-            Vectors x0,
-            Vectors h0,
-            Vectors[] @params,
-            double eps,
-            int maxIter = 500
-            )
-        {
-            if (!x0.IsVector()) throw new Exception("InitParam должен быть вектором.");
-            if (h0.Shape.Item1 != x0.Size || h0.Shape.Item2 != x0.Size) throw new ArgumentException("Начальная матрица H задана не верно");
-            if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
-            Vectors DFunc(Vectors xk) => dffunc(model, xk, @params);
-
-            Vectors hk = h0, xk = x0, xkp1, gfk = DFunc(xk), gfkp1,
-                pk, sk, rk, a, b, deltaX;
-            double alpha_k = 1.0;
-            //OptRes optRes;
-            OptRes result = new()
-            {
-                Tol = eps,
-                CountCalcFunc = 0,
-                Convergence = false,
-                NumIteration = 0,
-                Norm = double.MaxValue
-            };
-
-            double denominatorA, denominatorB, oldfunc = func(model, xk, @params), newfunc, c1 = 1e-1, c2 = 0.6, temp;
-            result.CountCalcFunc += 1;
-
-            OptRes FindOptAlpha(Vectors xk, Vectors pk, int max) => GoldenSection.Optimize(func, model, @params, xk, pk, maxIter: max);
-
-            pk = -hk.Dot(gfk.T()).T();
-            OptRes optRes = FindOptAlpha(xk, pk, 100);
-            result.CountCalcFunc += optRes.CountCalcFunc;
-            alpha_k = optRes.MinPoint[0];
-
-            //Console.WriteLine("Начало оптимизации...");
-            for (; result.NumIteration < maxIter && result.Norm > eps; result.NumIteration++)
-            {
-                //Console.WriteLine($"---------- Итерация {Result.NumIteration} ----------");
-                pk = -hk.Dot(gfk.T()).T();
-                //Console.WriteLine($"pk: {pk}");
-                //optRes = FindOptAlpha(xk, pk);
-                //Console.WriteLine(optRes);
-                //result.CountCalcFunc += optRes.CountCalcFunc;
-                //alpha_k = optRes.MinPoint[0];
-                
-                xkp1 = xk + alpha_k * pk;
-                result.Norm = Vectors.Norm(xkp1 - xk);
-                gfkp1 = DFunc(xkp1);
-
-                sk = alpha_k * pk;
-                rk = gfkp1 - gfk;
-                //Console.WriteLine($"sk: {sk}; rk: {rk}");
-
-                deltaX = xkp1 - xk;
-                //deltaGrad = gfkp1 - gfk;
-
-                //temp = deltaX & deltaX.T();
-                //temp1 = temp[0];
-                //alpha_k = (deltaX & rk.T())[0] / (rk & rk.T())[0];
-                //alpha_k = double.Max(eps, double.Min(alpha_k, 1));
-
-                newfunc = func(model, xkp1, @params);
-                result.CountCalcFunc += 1;
-                temp = (gfk & pk.T())[0];
-                if (newfunc > oldfunc + c1 * alpha_k * temp)
-                {
-                    optRes = FindOptAlpha(xk, pk, 10);
-                    result.CountCalcFunc += optRes.CountCalcFunc;
-                    alpha_k = optRes.MinPoint[0];
-                }
-                else if ((gfkp1 & pk.T())[0] < c2 * temp) {
-                    optRes = FindOptAlpha(xk, pk, 10);
-                    result.CountCalcFunc += optRes.CountCalcFunc;
-                    alpha_k = optRes.MinPoint[0];
-                }
-                //alpha_k = double.Max(eps, double.Min(alpha_k, 5));
-                // Считаем Гессиан
-                denominatorA = ScalarMult(sk, rk);
-                denominatorB = ScalarMult(rk & hk, rk);
-
-                if (double.Abs(denominatorA) < eps || double.Abs(denominatorB) < eps)
-                {
-                    hk = Vectors.Eig(hk.Shape);
-                }
-                else
-                {
-                    a = (sk.T() & sk) / denominatorA;
-                    b = (hk & (rk.T() & rk) & hk) / denominatorB;
-                    hk = hk + a - b;
-                }
-                xk = xkp1; gfk = gfkp1;
-                oldfunc = newfunc;
-            }
-            if (result.Norm < eps)
-                result.Convergence = true;
-            result.MinPoint = xk;
-            result.MinValueFunction = func(model, xk, @params);
-            return result;
-        }
-
-
-
-
         public OptRes Optimisate(
             LogLikelihoodFunction func,
-            LogLikelihoodGradient? dffunc,
+            LogLikelihoodGradient? grad,
             IModel model,
-            Vectors x0,
-            Vectors[] @params,
-            double eps,
+            Vectors initialGuess,
+            Vectors[] parameters,
+            double tol = 1e-7,
             int maxIter = 1000
             )
         {
-            if (!x0.IsVector()) throw new Exception("InitParam должен быть вектором.");
-            if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
-            Vectors DFunc(Vectors xk) => dffunc(model, xk, @params);
+            if (!initialGuess.IsVector()) throw new Exception("InitParam должен быть вектором.");
+            if (grad is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
 
-            Vectors hk = Vectors.Eig((x0.Size, x0.Size)), xk = x0, xkp1, gfk = DFunc(xk), gfkp1,
-                pk, sk, rk, a, b, deltaX;
-            double alpha_k = 1.0;
-            
-            OptRes result = new()
+            int n = initialGuess.Size;
+            Vectors x = initialGuess.Clone();
+
+            Vectors Gradient(Vectors x) => grad(model, x, parameters);
+
+            Vectors g = Gradient(x);
+            Vectors H = Vectors.Eig((n, n));
+
+            OptRes result = new OptRes()
             {
-                Tol = eps,
                 CountCalcFunc = 0,
-                Convergence = false,
                 NumIteration = 0,
-                Norm = double.MaxValue
+                Tol = tol,
+                Norm = Vectors.Norm(g),
+                MinPoint = initialGuess,
             };
 
-            double denominatorA, denominatorB, oldfunc = func(model, xk, @params), newfunc, c1 = 1e-4, c2 = 0.9, temp;
-
-            OptRes FindOptAlpha(Vectors xk, Vectors pk) => GoldenSection.Optimize(func, model, @params, xk, pk, maxIter: 100, maxalpha: 1);
-            pk = -hk.Dot(gfk.T()).T();
-            OptRes optRes = optRes = FindOptAlpha(xk, pk);
-            result.CountCalcFunc += optRes.CountCalcFunc;
-            alpha_k = optRes.MinPoint[0];
-            //Console.WriteLine("Начало оптимизации...");
-            for (; result.NumIteration < maxIter && result.Norm > eps; result.NumIteration++)
+            while (result.NumIteration < maxIter && result.Norm > tol)
             {
-                //Console.WriteLine($"---------- Итерация {Result.NumIteration} ----------");
-                pk = -hk.Dot(gfk.T()).T();
-                //Console.WriteLine($"pk: {pk}");
-                //optRes = FindOptAlpha(xk, pk);
-                //Console.WriteLine(optRes);
-                //result.CountCalcFunc += optRes.CountCalcFunc;
-                //alpha_k = optRes.MinPoint[0];
-                xkp1 = xk + alpha_k * pk;
-                result.Norm = Vectors.Norm(xkp1 - xk);
-                gfkp1 = DFunc(xkp1);
+                Vectors d = -(H & g.T()).T(); // Направление спуска
 
-                sk = alpha_k * pk;
-                rk = gfkp1 - gfk;
-                //Console.WriteLine($"sk: {sk}; rk: {rk}");
+                // Линейный поиск с квадратичной интерполяцией
+                OptRes linSearch = QuadraticInterpolation.Optimisate(func, grad, model, parameters, x, d, 1.0);
 
-                deltaX = xkp1 - xk;
-                //deltaGrad = gfkp1 - gfk;
+                result.CountCalcFunc += linSearch.CountCalcFunc;
+                result.CountCalcGradient += linSearch.CountCalcGradient;
+                double alpha = linSearch.MinPoint[0];
 
-                //temp = deltaX & deltaX.T();
-                //temp1 = temp[0];
-                //alpha_k = (deltaX & rk.T())[0] / (rk & rk.T())[0];
-                newfunc = func(model, xkp1, @params);
-                temp = (gfk & pk.T())[0];
-                if (newfunc > oldfunc + c1 * alpha_k * temp)
-                {
-                    alpha_k *= 0.5;
-                }
-                else if ((gfkp1 & pk.T())[0] < c2 * temp)
-                {
-                    alpha_k *= 1.5;
-                }
+                Vectors xNew = Vectors.Add(x, d * alpha);
+                Vectors gNew = Gradient(xNew);
+                result.CountCalcGradient++;
 
-                    alpha_k = double.Max(eps, double.Min(alpha_k, 1));
+                Vectors deltaX = xNew - x;
+                Vectors deltaG = gNew - g;
 
-                // Считаем Гессиан
-                denominatorA = ScalarMult(sk, rk);
-                denominatorB = ScalarMult(rk & hk, rk);
+                result.Norm = Vectors.Norm(deltaX);
 
-                if (double.Abs(denominatorA) < eps || double.Abs(denominatorB) < eps)
-                {
-                    hk = Vectors.Eig(hk.Shape);
-                }
-                else 
-                {
-                    a = (sk.T() & sk) / denominatorA;
-                    b = (hk & (rk.T() & rk) & hk) / denominatorB;
-                    hk = hk + a - b;
-                }
-                xk = xkp1; gfk = gfkp1;
-                oldfunc = newfunc;
+                // Обновление приближения Гессиана по формуле DFP
+                H = UpdateHessianApproximationDFP(H, deltaX, deltaG);
+
+                x = xNew;
+                g = gNew;
+
+                result.NumIteration++;
             }
-            if (result.Norm < eps)
-                result.Convergence = true;
-            result.MinPoint = xk;
-            result.MinValueFunction = func(model, xk, @params);
+
+            result.Convergence = result.Norm < tol;
+            result.MinPoint = x;
             return result;
         }
+
+        private static Vectors UpdateHessianApproximationDFP(Vectors H, Vectors deltaX, Vectors deltaG)
+        {
+            int n = deltaX.Size;
+            Vectors HNew = H.Clone();
+
+            Vectors HdeltaG = (H & deltaG.T()).T();
+            double deltaGtHdeltaG = deltaG.Dot(HdeltaG.T())[0];
+            double deltaXtDeltaG = deltaX.Dot(deltaG.T())[0];
+
+            // Проверка условия кривизны
+            if (deltaXtDeltaG <= 0)
+                return H; // Не обновляем H если условие кривизны не выполняется
+
+            // Первое слагаемое DFP
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    HNew[i, j] += deltaX[i] * deltaX[j] / deltaXtDeltaG;
+                }
+            }
+
+            // Второе слагаемое DFP
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    HNew[i, j] -= HdeltaG[i] * HdeltaG[j] / deltaGtHdeltaG;
+                }
+            }
+
+            return HNew;
+        }
+
         public OptResExtended OptimisateRandomInit(
             LogLikelihoodFunction func,
             LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors[] @params,
-            (int, int) shapeInitParam,
             double eps,
             double minValue = -10,
             double maxValue = 10,
@@ -620,7 +549,7 @@ namespace Regression_analysis
             {
                 
                 #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
-                result.InitParametrs = rand.Generate(shapeInitParam, tmp);
+                result.InitParametrs = rand.Generate((1, model.CountRegressor), tmp);
                 #pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
@@ -630,7 +559,6 @@ namespace Regression_analysis
                 {
                     result.Convergence = true;
                     result.MinPoint = resMethod.MinPoint;
-                    result.MinValueFunction = resMethod.MinValueFunction;
                     result.NumIteration = resMethod.NumIteration;
                     result.Norm = resMethod.Norm;
                     result.CountCalcFunc += resMethod.CountCalcFunc;
@@ -641,7 +569,6 @@ namespace Regression_analysis
                     {
                         result.Norm = resMethod.Norm;
                         result.MinPoint = resMethod.MinPoint;
-                        result.MinValueFunction = resMethod.MinValueFunction;
                         result.NumIteration = resMethod.NumIteration;
                     }
                     result.CountCalcFunc += resMethod.CountCalcFunc;
@@ -738,7 +665,6 @@ namespace Regression_analysis
             if (result.Norm < result.Tol)
                 result.Convergence = true;
             result.MinPoint = Vectors.GetColumn(d, Vectors.MinIndex(resF));
-            result.MinValueFunction = func(model, result.MinPoint, @params);
             return result;
         }
 
@@ -747,7 +673,6 @@ namespace Regression_analysis
             LogLikelihoodGradient? dffunc,
             IModel model,
             Vectors[] @params,
-            (int, int) shapeInitParam,
             double eps,
             double minValue = -10,
             double maxValue = 10,
@@ -762,20 +687,19 @@ namespace Regression_analysis
             OptResExtended result = new()
             {
                 Tol = eps,
-                InitParametrs = x0 ?? Vectors.Zeros(shapeInitParam),
+                InitParametrs = x0 ?? Vectors.Zeros((1, model.CountRegressor)),
             };
             resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
             result.Convergence = resMethod.Convergence;
             result.NumIteration = resMethod.NumIteration;
             result.NumberRebounds += 1;
             result.Norm = resMethod.Norm;
-            result.MinValueFunction = resMethod.MinValueFunction;
             result.MinPoint = resMethod.MinPoint;
             result.CountCalcFunc = resMethod.CountCalcFunc;
             for (; result.NumberRebounds < maxIter && !result.Convergence; result.NumberRebounds++)
             {
                 #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
-                result.InitParametrs = rand.Generate(shapeInitParam, tmp);
+                result.InitParametrs = rand.Generate((1, model.CountRegressor), tmp);
                 #pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
@@ -784,7 +708,6 @@ namespace Regression_analysis
                 {
                     result.Convergence = true;
                     result.MinPoint = resMethod.MinPoint;
-                    result.MinValueFunction = resMethod.MinValueFunction;
                     result.NumIteration = resMethod.NumIteration;
                     result.Norm = resMethod.Norm;
                     result.CountCalcFunc += resMethod.CountCalcFunc;
@@ -795,69 +718,11 @@ namespace Regression_analysis
                     {
                         result.Norm = resMethod.Norm;
                         result.MinPoint = resMethod.MinPoint;
-                        result.MinValueFunction = resMethod.MinValueFunction;
                         result.NumIteration = resMethod.NumIteration;
                     }
                     result.CountCalcFunc += resMethod.CountCalcFunc;
                 }
             }
-            return result;
-        }
-
-        public OptResExtended OptimisateBestRandomInit(
-            LogLikelihoodFunction func,
-            LogLikelihoodGradient? dffunc,
-            IModel model,
-            Vectors[] @params,
-            (int, int) shapeInitParam,
-            double eps,
-            double minValue = -10,
-            double maxValue = 10,
-            int maxIter = 10,
-            int? seed = null
-            )
-        {
-            var rand = seed == null ? new() : (UniformDistribution) new(seed);
-            OptRes resMethod;
-            var tmp = new Vectors([minValue, maxValue]);
-            var mnkestiminator = new MNKEstimator();
-            OptResExtended result = new()
-            {
-                Tol = eps,
-                InitParametrs = mnkestiminator.EstimateParameters(model, [@params[0], @params[1], @params[2]])
-            };
-            Console.WriteLine(result.InitParametrs);
-            resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
-            result.Convergence = resMethod.Convergence;
-            result.NumIteration = resMethod.NumIteration;
-            result.NumberRebounds += 1;
-            result.Norm = resMethod.Norm;
-            result.MinValueFunction = resMethod.MinValueFunction;
-            result.MinPoint = resMethod.MinPoint;
-            result.CountCalcFunc = resMethod.CountCalcFunc;
-            Console.WriteLine(resMethod.MinPoint);
-            double maxvalue = resMethod.MinValueFunction, minvalue = resMethod.MinValueFunction;
-            Vectors initParam, minInitParam = result.InitParametrs;
-            for (; result.NumberRebounds < maxIter; result.NumberRebounds++)
-            {
-#pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
-                initParam = rand.Generate(shapeInitParam, tmp);
-#pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
-#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-                resMethod = Optimisate(func, dffunc, model, initParam, @params, eps);
-#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-                if (resMethod.MinValueFunction < result.MinValueFunction) {
-                    result.Convergence = resMethod.Convergence;
-                    result.MinPoint = resMethod.MinPoint;
-                    result.MinValueFunction = resMethod.MinValueFunction;
-                    result.NumIteration = resMethod.NumIteration;
-                    result.Norm = resMethod.Norm;
-                    result.CountCalcFunc += resMethod.CountCalcFunc;
-                    minValue = resMethod.MinValueFunction;
-                    minInitParam = initParam;
-                }
-            }
-            Console.WriteLine($"Min: {minValue} Max: {maxvalue} MinInitParam: {minInitParam}");
             return result;
         }
 
@@ -958,7 +823,6 @@ namespace Regression_analysis
             }
         }
     }
-
 
     abstract class TestFunction
     {

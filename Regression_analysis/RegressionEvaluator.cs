@@ -2,6 +2,8 @@
 using System.Collections.Concurrent;
 using System.ComponentModel.Design;
 
+using MathNet.Numerics.Integration;
+
 namespace Regression_analysis
 {
     public struct ResultEvalueator 
@@ -66,11 +68,15 @@ namespace Regression_analysis
             IParameterEstimator evolution,
             int countIteration,
             int countObservations,
-            int numberParametr,
+            int[] numberParametr,
             IRandomDistribution errorDist,
             Vectors paramsDist,
+            IProgress<int> progress,
+            CancellationToken token,
+            
             Vectors? planX = null,
             Vectors? planP = null,
+            Vectors? observations = null,
             bool isRound = false,
             int? roundDecimals = null,
             int? seed = null,
@@ -79,14 +85,14 @@ namespace Regression_analysis
             (double start, double end)[]? dimension = null
             )
         {
-            var progress = new ProgressBarConsole() { CountIteration = countIteration };
             if (countIteration <= 0 || countObservations <= 0 || paramsDist.Size != errorDist.CountParametrsDistribution) throw new ArgumentException("Параметры введены не верно.");
-            if (numberParametr < 0 || numberParametr > model.CountRegressor) throw new ArgumentException("Номер параметра выходит за диапозон доступных");
-            double[] statistics = new double[countIteration];
-            //Vectors statistics = Vectors.InitVectors((1, countIteration));
-            
+            double[][] statistics = new double[numberParametr.Length][];
+            for (int i = 0; i < numberParametr.Length; i++)
+            {
+                if (numberParametr[i] < 0 || numberParametr[i] > model.CountRegressor) throw new ArgumentException("Номер параметра выходит за диапозон доступных");
+                statistics[i] = new double[countIteration];
+            }
             Vectors x, y, u, matrixX, vectorE, calcTheta;
-            double avg_norm = 0.0, avg_stat = 0.0;
             var generator = seed is null ? new Random() : new Random((int) seed);
             var localGenerator = new ThreadLocal<Random>(() =>
         seed is null ? new Random() : new Random((int) seed + Thread.CurrentThread.ManagedThreadId));
@@ -105,18 +111,22 @@ namespace Regression_analysis
                     }
                     dimension = [(a, b)];
                 }
-                x = LinespaceRandom.Generate((countObservations, model.CountFacts), dimension, generator);
+                x = observations is not null
+                    ? observations
+                    : LinespaceRandom.Generate((countObservations, model.CountFacts), dimension, generator);
                 matrixX = model.CreateMatrixX(x);
                 u = (matrixX & model.TrueTheta.T()).T();
 
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
-                    Parallel.ForEach(rangePartitioner, range =>
+                    Parallel.ForEach(rangePartitioner, new ParallelOptions { CancellationToken = token, MaxDegreeOfParallelism = Environment.ProcessorCount }, range =>
                     {
                         Vectors vectorE, y, calcTheta;
-                        for (int i = range.Item1; i < range.Item2; i++)
+                        int current;
+                        for (var i = range.Item1; i < range.Item2; i++)
                         {
+                            token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -128,23 +138,14 @@ namespace Regression_analysis
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
 
-                            statistics[i] = calcTheta[numberParametr];
-                            if (debug)
+                            for (var j = 0; j < numberParametr.Length; j++)
+                                statistics[j][i] = calcTheta[numberParametr[j]];
+                            lock (lockObj)
                             {
-                                lock (lockObj)
-                                {
-                                    //avg_stat += (stat - avg_stat) / (iter + 1);
-                                    //avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (iter + 1);
-
-                                    Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {calcTheta[numberParametr]}, Theta: {calcTheta}"));
-
-                                    // Обновление прогресс-бара требует синхронизации
-                                    //progress.Add(iter, "Получение статистик SRE",
-                                    //  FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
-                                    //Console.ResetColor();
-                                    iter++;
-                                }
+                                iter++;
+                                current = (int) ((double) iter / countIteration * 100);
                             }
+                            progress.Report(current);
                         }
 
                     }
@@ -155,6 +156,7 @@ namespace Regression_analysis
                     for (int i = 0; i < countIteration; i++)
 
                     {
+                        token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                         vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -168,19 +170,10 @@ namespace Regression_analysis
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-                        statistics[i] = calcTheta[numberParametr];
-                        if (debug)
+                        for (int j = 0; j < numberParametr.Length; j++)
+                            statistics[j][i] = calcTheta[numberParametr[j]];
 
-                        {
-
-                            avg_stat += (calcTheta[numberParametr] - avg_stat) / (i + 1);
-                            avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (i + 1);
-
-                            progress.Add(i, "Получение статистик SRE", FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
-
-                            Console.ResetColor();
-                            Console.Out.Flush();
-                        }
+                        progress.Report((int) ((double) (i + 1) / countIteration * 100));
                     }
                 }
             }
@@ -196,11 +189,13 @@ namespace Regression_analysis
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
-                    Parallel.ForEach(rangePartitioner, range =>
+                    Parallel.ForEach(rangePartitioner, new ParallelOptions { CancellationToken = token, MaxDegreeOfParallelism = Environment.ProcessorCount }, range =>
                     {
                         Vectors vectorE, y, calcTheta;
+                        int current;
                         for (int i = range.Item1; i < range.Item2; i++)
                         {
+                            token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -210,22 +205,14 @@ namespace Regression_analysis
                                 y = RoundVector(y, (int) roundDecimals);
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-                            statistics[i] = calcTheta[numberParametr];
-                            if (debug)
+                            for (int j = 0; j < numberParametr.Length; j++)
+                                statistics[j][i] = calcTheta[numberParametr[j]];
+                            lock (lockObj)
                             {
-                                lock (lockObj)
-                                {
-                                    //avg_stat += (stat - avg_stat) / (iter + 1);
-                                    //avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (iter + 1);
-
-                                    Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {calcTheta[numberParametr]}, Theta: {calcTheta}"));
-                                    // Обновление прогресс-бара требует синхронизации
-                                    //progress.Add(iter, "Получение статистик SRE",
-                                    //  FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
-                                    //Console.ResetColor();
-                                    iter++;
-                                }
+                                iter++;
+                                current = (int) ((double) iter / countIteration * 100);
                             }
+                            progress.Report(current);
                         }
 
                     }
@@ -235,6 +222,7 @@ namespace Regression_analysis
                 {
                     for (int i = 0; i < countIteration; i++)
                     {
+                        token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                         vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -246,30 +234,17 @@ namespace Regression_analysis
 
                         
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
-                        statistics[i] = calcTheta[numberParametr];
+                        for (int j = 0; j < numberParametr.Length; j++)
+                            statistics[j][i] = calcTheta[numberParametr[j]];
 
-                        if (debug)
-
-                        {
-
-                            avg_stat += (calcTheta[numberParametr] - avg_stat) / (i + 1);
-
-                            avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (i + 1);
-
-                            progress.Add(i, "Получение статистик SRE", FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
-
-                            Console.ResetColor();
-
-                        }
+                        progress.Report((int) ((double) (i + 1) / countIteration * 100));
                     }
                 }
-                Console.WriteLine(double.Sqrt(((double.Pow(paramsDist[1] - paramsDist[0], 2) / 12) * Vectors.Inv(matrixX.T() & matrixX))[0,0]));
             }
             return new ResultEvalueator() { Statistics = new Vectors(statistics), CountObservarions = countObservations, Distribution = errorDist.Name, ParametersDistribution = paramsDist, IsRound = isRound, RoundDecimals = roundDecimals};
 
         }
 
-        
         public static ResultEvalueator Fit(
             IModel model,
             IParameterEstimator evolution,
@@ -277,8 +252,11 @@ namespace Regression_analysis
             int countObservations,
             IRandomDistribution errorDist,
             Vectors paramsDist,
+            IProgress<int> progress,
+            CancellationToken token,
             Vectors? planX = null,
             Vectors? planP = null,
+            Vectors? observations = null,
             bool isRound = false,
             int? roundDecimals = null,
             int? seed = null,
@@ -287,8 +265,6 @@ namespace Regression_analysis
             (double start, double end)[]? dimension = null
             )
         {
-
-            var progress = new ProgressBarConsole() { CountIteration = countIteration };
             if (countIteration <= 0 || countObservations <= 0 || paramsDist.Size != errorDist.CountParametrsDistribution) throw new ArgumentException("Параметры введены не верно.");
             double[] statistics = new double[countIteration];
             //Vectors statistics = Vectors.InitVectors((1, countIteration));
@@ -297,7 +273,6 @@ namespace Regression_analysis
             var localGenerator = new ThreadLocal<Random>(() =>
         seed is null ? new Random() : new Random((int) seed + Thread.CurrentThread.ManagedThreadId));
             Vectors x, y, u, matrixX, vectorE, calcTheta;
-            double stat, avg_norm = 0.0, avg_stat = 0.0;
             var generator = seed is null ? new Random() : new Random((int) seed);
             
             
@@ -317,18 +292,20 @@ namespace Regression_analysis
                     }
                     dimension = [(a, b)];
                 }
-                x = Linespace.Generate((countObservations, model.CountFacts), dimension, generator);
+                x = observations is not null ? observations : Linespace.Generate((countObservations, model.CountFacts), dimension, generator);
                 matrixX = model.CreateMatrixX(x);
                 u = (matrixX & model.TrueTheta.T()).T();
 
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
-                    Parallel.ForEach(rangePartitioner, range =>
+                    Parallel.ForEach(rangePartitioner, new ParallelOptions { CancellationToken = token, MaxDegreeOfParallelism = Environment.ProcessorCount }, range =>
                     {
                         Vectors vectorE, y, calcTheta;
+                        int current;
                         for (int i = range.Item1; i < range.Item2; i++)
                         {
+                            token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -341,22 +318,11 @@ namespace Regression_analysis
                             calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
 
                             statistics[i] = SREСriteria.SRE(model, calcTheta, x, y);
-                            if (debug)
-                            {
-                                lock (lockObj)
-                                {
-                                    //avg_stat += (stat - avg_stat) / (iter + 1);
-                                    //avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (iter + 1);
-
-                                    Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {statistics[i]}, Theta: {calcTheta}"));
-
-                                    // Обновление прогресс-бара требует синхронизации
-                                    //progress.Add(iter, "Получение статистик SRE",
-                                    //  FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
-                                    //Console.ResetColor();
-                                    iter++;
-                                }
+                            lock (lockObj) {
+                                iter++;
+                                current = (int) ((double) iter / countIteration * 100);
                             }
+                            progress.Report(current);
                         }
 
                     }
@@ -367,6 +333,7 @@ namespace Regression_analysis
                     for (int i = 0; i < countIteration; i++)
 
                     {
+                        token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                         vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -381,18 +348,8 @@ namespace Regression_analysis
 
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
                         statistics[i] = SREСriteria.SRE(model, calcTheta, x, y);
-                        if (debug)
 
-                        {
-
-                            avg_stat += (statistics[i] - avg_stat) / (i + 1);
-                            avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (i + 1);
-
-                            progress.Add(i, "Получение статистик SRE", FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
-
-                            Console.ResetColor();
-                            Console.Out.Flush();
-                        }
+                        progress.Report((int) ((double) (i + 1) / countIteration * 100));
                     }
                 }
             }
@@ -408,11 +365,13 @@ namespace Regression_analysis
                 if (parallel)
                 {
                     var rangePartitioner = Partitioner.Create(0, countIteration, countIteration / Environment.ProcessorCount);
-                    Parallel.ForEach(rangePartitioner, range =>
+                    int current;
+                    Parallel.ForEach(rangePartitioner, new ParallelOptions { CancellationToken = token, MaxDegreeOfParallelism = Environment.ProcessorCount }, range =>
                     {
                         Vectors vectorE, y, calcTheta;
                         for (int i = range.Item1; i < range.Item2; i++)
                         {
+                            token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -423,21 +382,12 @@ namespace Regression_analysis
 #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
                             statistics[i] = SREСriteria.SRE(model, calcTheta, x, y);
-                            if (debug)
+                            lock (lockObj)
                             {
-                                lock (lockObj)
-                                {
-                                    //avg_stat += (stat - avg_stat) / (iter + 1);
-                                    //avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (iter + 1);
-
-                                    Console.WriteLine(FormattableString.Invariant($"Итерация {iter}, S: {statistics[i]}, Theta: {calcTheta}"));
-                                    // Обновление прогресс-бара требует синхронизации
-                                    //progress.Add(iter, "Получение статистик SRE",
-                                    //  FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
-                                    //Console.ResetColor();
-                                    iter++;
-                                }
+                                iter++;
+                                current = (int) ((double) iter / countIteration * 100);
                             }
+                            progress.Report(current);
                         }
 
                     }
@@ -447,6 +397,7 @@ namespace Regression_analysis
                 {
                     for (int i = 0; i < countIteration; i++)
                     {
+                        token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
                         vectorE = errorDist.Generate((1, countObservations), paramsDist);
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
@@ -460,19 +411,7 @@ namespace Regression_analysis
                         calcTheta = evolution.EstimateParameters(model, [paramsDist, x, y]);
                         statistics[i] = SREСriteria.SRE(model, calcTheta, x, y);
 
-                        if (debug)
-
-                        {
-
-                            avg_stat += (statistics[i] - avg_stat) / (i + 1);
-
-                            avg_norm += (Vectors.Norm(model.TrueTheta - calcTheta) - avg_norm) / (i + 1);
-
-                            progress.Add(i, "Получение статистик SRE", FormattableString.Invariant($"Ср.Статистика: {avg_stat}, Ср.Норма: {avg_norm}"));
-
-                            Console.ResetColor();
-
-                        }
+                        progress.Report((int)((double) (i+1) / countIteration * 100));
                     }
                 }
             }
