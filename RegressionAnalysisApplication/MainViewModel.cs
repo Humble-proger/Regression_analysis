@@ -519,7 +519,7 @@ namespace RegressionAnalysisApplication
             var evolution = SelectEvolution.ParameterEstimator;
             if (evolution is MMKEstimator est)
             {
-                est.Config = MMKConfigLoader.Load(SelectDistribution.Type);
+                est.Config = MMKConfigLoader.Load(SelectDistribution.Type, ismultiiteration: false);
             }
             if (SelectRegression is null)
             {
@@ -849,8 +849,8 @@ namespace RegressionAnalysisApplication
         }
 
         private string? OpenDataFilePath(string defaultFileName = "document",
-                               string defaultExt = ".dat",
-                               string filter = "Файлы данных (*.dat)|*.dat")
+                               string defaultExt = ".json",
+                               string filter = "Файлы данных (*.json)|*.json")
         {
             var dialog = new OpenFileDialog
             {

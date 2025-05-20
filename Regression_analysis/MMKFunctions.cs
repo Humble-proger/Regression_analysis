@@ -42,8 +42,8 @@ namespace Regression_analysis
         public int MaxAttempts { get; set; } = 100;
         public double Tolerance { get; set; } = 1e-7;
         public int MaxIteration { get; set; } = 1000;
+        public bool MNKEstuminate { get; set; } = true;
         public int? Seed { get; set; }
-
     }
 
     public class CauchyMMKDistribution : IMMKFunction {

@@ -144,42 +144,66 @@ namespace Regression_analysis
             }
             else 
             {
-                Vectors initParams;
-                try {
-                    var matrixX = model.CreateMatrixX(otherParameters[1]);
-                    var tMatrixX = matrixX.T();
-                    var mean = Config.Mean(otherParameters[0]);
-                    initParams =  mean is null 
-                        ? (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & otherParameters[2].T()
-                        : (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & (otherParameters[2] - (double) mean).T();
-                }
-                catch
+                if (Config.MNKEstuminate)
                 {
-                    throw new Exception("Не правильные данные");
+                    Vectors initParams;
+                    try
+                    {
+                        var matrixX = model.CreateMatrixX(otherParameters[1]);
+                        var tMatrixX = matrixX.T();
+                        var mean = Config.Mean(otherParameters[0]);
+                        initParams = mean is null
+                            ? (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & otherParameters[2].T()
+                            : (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & (otherParameters[2] - (double) mean).T();
+                    }
+                    catch
+                    {
+                        throw new Exception("Не правильные данные");
+                    }
+
+                    return Config.IsMultiIterationOptimisation
+                        ? Config.Oprimizator.OptimisateRandomInit(
+                            Config.Functions.LogLikelihood,
+                            Config.Functions.Gradient,
+                            model,
+                            otherParameters,
+                            Config.Tolerance,
+                            maxIter: Config.MaxIteration,
+                            seed: Config.Seed,
+                            x0: initParams.T()
+                            ).MinPoint
+                        : Config.Oprimizator.Optimisate(
+                            Config.Functions.LogLikelihood,
+                            Config.Functions.Gradient,
+                            model,
+                            initParams.T(),
+                            otherParameters,
+                            Config.Tolerance,
+                            maxIter: Config.MaxIteration
+                            ).MinPoint
+                        ;
                 }
-
-                return Config.IsMultiIterationOptimisation
-                    ? Config.Oprimizator.OptimisateRandomInit(
-                        Config.Functions.LogLikelihood,
-                        Config.Functions.Gradient,
-                        model,
-                        otherParameters,
-                        Config.Tolerance,
-                        maxIter: Config.MaxIteration,
-                        seed: Config.Seed,
-                        x0: initParams.T()
-                        ).MinPoint
-                    : Config.Oprimizator.Optimisate(
-                        Config.Functions.LogLikelihood,
-                        Config.Functions.Gradient,
-                        model,
-                        initParams.T(),
-                        otherParameters,
-                        Config.Tolerance,
-                        maxIter: Config.MaxIteration
-                        ).MinPoint
-                    ;
-
+                else {
+                    return Config.IsMultiIterationOptimisation
+                        ? Config.Oprimizator.OptimisateRandomInit(
+                            Config.Functions.LogLikelihood,
+                            Config.Functions.Gradient,
+                            model,
+                            otherParameters,
+                            Config.Tolerance,
+                            maxIter: Config.MaxIteration,
+                            seed: Config.Seed
+                            ).MinPoint
+                        : Config.Oprimizator.Optimisate(
+                            Config.Functions.LogLikelihood,
+                            Config.Functions.Gradient,
+                            model,
+                            Vectors.Zeros((1, model.CountRegressor)),
+                            otherParameters,
+                            Config.Tolerance,
+                            maxIter: Config.MaxIteration
+                            ).MinPoint;
+                }
 
             }
         }
@@ -269,7 +293,8 @@ namespace Regression_analysis
                 MaxAttempts = maxattepts,
                 Tolerance = tol,
                 MaxIteration = maxiteration,
-                Seed = seed
+                Seed = seed,
+                MNKEstuminate = false
             };
         }
 
@@ -319,7 +344,7 @@ namespace Regression_analysis
             TypeDisribution typeDisribution,
             bool ismultiiteration = true,
             int maxattepts = 100,
-            int maxiteration = 1000,
+            int maxiteration = 5000,
             double tol = 1e-7,
             int? seed = null
             )
@@ -381,16 +406,16 @@ namespace Regression_analysis
         public static void Main(string[] args) {
             
             string h = "H0";
-            var n = 80;
+            var n = 1000;
             var thetaH0 = new Vectors([5, 2, 3, 7]);
             var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n)) ;
             var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
-            var paramDistribution = new Vectors([0, 30]);
+            var paramDistribution = new Vectors([0, 30, 1.2]);
             int numparam = 1;
 
-            //var e = LaplaceDistribution.Generate((1, 10000), paramDistribution, new Random());
-            //e.SaveToDAT($"D:/Program/Budancev/ОР/Samples/Laplace.dat", "Laplace (0, 30)");
-            
+            var e_teml = GammaDistribution.Generate((1, 10000), paramDistribution, new Random());
+            e_teml.SaveToDAT($"D:/Program/Budancev/ОР/Samples/Gamma.dat", "Gamma (0, 30, 2.7)");
+            /*
             
             Vectors planX = new Vectors([[-1, -1, -1],
                                         [1, -1, -1],
@@ -415,58 +440,74 @@ namespace Regression_analysis
             var rand = new Random();
             var error = new GammaDistribution();
             var e = error.Generate((1, n), paramDistribution);
-            var X = LinespaceRandom.Generate((n, model.CountFacts), [(-10, 10)], rand);
+            var X = LinespaceRandom.Generate((n, model.CountFacts), [(-1, 1)], rand);
             var y = (model.CreateMatrixX(X) & model.TrueTheta.T()).T() + e;
             var func = new GammaMMKDistribution();
 
             //var x0 = new Vectors([1, 2, 5, 9]);
 
-            var opt1 = new CGOptimizator();
-            var opt2 = new NelderMeadOptimizator();
-            var opt3 = new DFPOptimizator();
+            //var opt3 = new CGOptimizator();
+            var opt1 = new NelderMeadOptimizator();
+            //var opt2 = new DFPOptimizator();
 
             var MNK = new MNKEstimator();
             var calc_theta = MNK.EstimateParameters(model, [paramDistribution, X, y]);
 
             var clock = new Stopwatch();
             clock.Start();
-            var result0 = opt1.Optimisate(
+            var result0 = opt1.OptimisateRandomInit(
                     func.LogLikelihood,
                     func.Gradient,
                     model,
-                    calc_theta,
                     [paramDistribution, X, y],
-                    1e-7
+                    1e-7,
+                    x0: calc_theta,
+                    maxIter: 1000
                 );
+            
             clock.Stop();
             Console.WriteLine($"Первое время: {clock.ElapsedMilliseconds}");
-            clock.Restart();
-            var result1 = opt2.Optimisate(
-                    func.LogLikelihood,
+            var result1 = opt1.Optimisate(
+                func.LogLikelihood,
                     func.Gradient,
                     model,
                     calc_theta,
                     [paramDistribution, X, y],
-                    1e-7
+                    1e-7,
+                    maxIter: 1000
+                );
+            */
+            /*
+            clock.Restart();
+            var result1 = opt2.OptimisateRandomInit(
+                    func.LogLikelihood,
+                    func.Gradient,
+                    model,
+                    [paramDistribution, X, y],
+                    1e-7,
+                    x0: calc_theta
                 );
             clock.Stop();
             Console.WriteLine($"Второе время: {clock.ElapsedMilliseconds}");
+            
             clock.Restart();
             var result2 = opt3.Optimisate(
                     func.LogLikelihood,
                     func.Gradient,
                     model,
                     calc_theta,
-                    [paramDistribution, X, y]
+                    [paramDistribution, X, y],
+                    1e-7
                 );
             clock.Stop();
             Console.WriteLine($"Третье время: {clock.ElapsedMilliseconds}");
-            Console.WriteLine(result0 + "\n");
-            Console.WriteLine(result1 + "\n");
-            Console.WriteLine(result2 + "\n");
-            Console.WriteLine($"Значение функции для первого оптимизатора: {func.LogLikelihood(model, result0.MinPoint, [paramDistribution, X, y])}");
-            Console.WriteLine($"Значение функции для второго оптимизатора: {func.LogLikelihood(model, result1.MinPoint, [paramDistribution, X, y])}");
-            Console.WriteLine($"Значение функции для второго оптимизатора: {func.LogLikelihood(model, result2.MinPoint, [paramDistribution, X, y])}");
+            */
+            //Console.WriteLine(result0 + "\n");
+            //Console.WriteLine(result1 + "\n");
+            //Console.WriteLine(result2 + "\n");
+            //Console.WriteLine($"Значение функции для первого оптимизатора: {func.LogLikelihood(model, result0.MinPoint, [paramDistribution, X, y])}");
+            //Console.WriteLine($"Значение функции для второго оптимизатора: {func.LogLikelihood(model, result1.MinPoint, [paramDistribution, X, y])}");
+            //Console.WriteLine($"Значение функции для второго оптимизатора: {func.LogLikelihood(model, result2.MinPoint, [paramDistribution, X, y])}");
 
             /*
             var rand = new Random();

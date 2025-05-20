@@ -533,28 +533,29 @@ namespace Regression_analysis
             )
         {
             if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
-            var rand = seed == null ?  new() : (UniformDistribution) new(seed);
+            var rand = seed == null ? new() : (UniformDistribution) new(seed);
             OptRes resMethod;
+            var tmp = new Vectors([minValue, maxValue]);
             OptResExtended result = new()
             {
                 Tol = eps,
-                CountCalcFunc = 0,
-                Convergence = false,
-                NumIteration = 0,
-                NumberRebounds = 0,
-                Norm = double.MaxValue
+                InitParametrs = x0 ?? Vectors.Zeros((1, model.CountRegressor)),
             };
-            var tmp = new Vectors([minValue, maxValue]);
+            resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
+            result.Convergence = resMethod.Convergence;
+            result.NumIteration = resMethod.NumIteration;
+            result.NumberRebounds += 1;
+            result.Norm = resMethod.Norm;
+            result.MinPoint = resMethod.MinPoint;
+            result.CountCalcFunc = resMethod.CountCalcFunc;
             for (; result.NumberRebounds < maxIter && !result.Convergence; result.NumberRebounds++)
             {
-                
-                #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+#pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                 result.InitParametrs = rand.Generate((1, model.CountRegressor), tmp);
-                #pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
-                #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
+#pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
-                #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
-
+#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 if (resMethod.Convergence)
                 {
                     result.Convergence = true;
@@ -573,8 +574,6 @@ namespace Regression_analysis
                     }
                     result.CountCalcFunc += resMethod.CountCalcFunc;
                 }
-                Console.WriteLine(result.NumberRebounds);
-                Console.WriteLine(resMethod.Norm);
             }
             return result;
         }

@@ -430,6 +430,8 @@ namespace Regression_analysis
             }
             return res;
         }
+
+        //Devroye L. Non-Uniform Random Variate Generation.
         private static double GS(in Random rand, double k)
         {
             double res, u, w;
@@ -463,6 +465,7 @@ namespace Regression_analysis
             return k * e1;
         }
 
+        //George Marsaglia, Wai Wan Tsang. A Simple Method for Generating Gamma Variables
         private static double MAT(in Random rand, double k) {
             double d = k - 1.0 / 3;
             double c = 3 * double.Sqrt(d);
@@ -491,8 +494,6 @@ namespace Regression_analysis
                 result = GA2(rand, k);
             else if (k < 1)
                 result = GS(rand, k);
-            else if (k > 1 && k < 3)
-                result = GF(rand, k);
             else
             {
                 //var constant = InitConstantGO(k);
