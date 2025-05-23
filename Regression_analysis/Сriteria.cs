@@ -1,4 +1,6 @@
 ﻿
+using RegressionAnalysisLibrary;
+
 namespace Regression_analysis
 {
     public static class SREСriteria

@@ -1,8 +1,7 @@
-﻿using System;
+﻿
 using System.Collections.Concurrent;
-using System.ComponentModel.Design;
 
-using MathNet.Numerics.Integration;
+using RegressionAnalysisLibrary;
 
 namespace Regression_analysis
 {

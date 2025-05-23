@@ -1,11 +1,9 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,6 +14,7 @@ using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 
 using Regression_analysis;
+using RegressionAnalysisLibrary;
 
 
 namespace RegressionAnalysisApplication
@@ -120,7 +119,7 @@ namespace RegressionAnalysisApplication
         [ObservableProperty]
         private string _savePath = "Не выбрано";
 
-        public IConfigurationRoot? config;
+        public IConfigurationRoot? Config;
 
         private CancellationTokenSource? _cancellationTokenSource;
 
@@ -161,7 +160,8 @@ namespace RegressionAnalysisApplication
 
             UpdateSelectParam = new RelayCommand<int>(SelectParamFunction);
 
-            config = (new ConfigurationBuilder()).SetBasePath(Directory.GetCurrentDirectory()).AddIniFile("config.ini").Build();
+            if (File.Exists("config.ini"))
+                Config = (new ConfigurationBuilder()).SetBasePath(Directory.GetCurrentDirectory()).AddIniFile("config.ini").Build();
         }
 
         private void SelectParamFunction(int newCount) {
@@ -239,9 +239,9 @@ namespace RegressionAnalysisApplication
             }
 
             var evolution = SelectEvolution.ParameterEstimator;
-            if (evolution is MMKEstimator est)
+            if (evolution is MMPEstimator est)
             {
-                est.Config = MMKConfigLoader.Load(SelectDistribution.Type);
+                est.Config = MMPConfigLoader.Load(SelectDistribution.Type);
             }
             if (SelectRegression is null) {
                 ShowMessage.Execute("Ошибка не выбрана моедль регрессии");
@@ -517,9 +517,9 @@ namespace RegressionAnalysisApplication
             }
 
             var evolution = SelectEvolution.ParameterEstimator;
-            if (evolution is MMKEstimator est)
+            if (evolution is MMPEstimator est)
             {
-                est.Config = MMKConfigLoader.Load(SelectDistribution.Type, ismultiiteration: false);
+                est.Config = MMPConfigLoader.Load(SelectDistribution.Type, ismultiiteration: false);
             }
             if (SelectRegression is null)
             {
@@ -857,8 +857,8 @@ namespace RegressionAnalysisApplication
                 FileName = defaultFileName,    // Имя файла по умолчанию
                 DefaultExt = defaultExt,       // Расширение по умолчанию
                 Filter = filter,               // Фильтры файлов
-                InitialDirectory = config is null ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-                                                  : config["AppSettings:BaseFolder"],
+                InitialDirectory = Config is null ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                                                  : Config["AppSettings:BaseFolder"],
                 Title = "Выберите файл для загрузки",
                 AddExtension = true
             };
@@ -875,8 +875,8 @@ namespace RegressionAnalysisApplication
                 FileName = defaultFileName,    // Имя файла по умолчанию
                 DefaultExt = defaultExt,       // Расширение по умолчанию
                 Filter = filter,               // Фильтры файлов
-                InitialDirectory = config is null ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-                                                  : config["AppSettings:BaseFolder"],
+                InitialDirectory = Config is null ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+                                                  : Config["AppSettings:BaseFolder"],
                 Title = "Выберите место для сохранения файла",
                 AddExtension = true,
                 OverwritePrompt = true         // Предупреждать о перезаписи

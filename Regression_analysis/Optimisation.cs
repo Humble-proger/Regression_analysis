@@ -1,16 +1,11 @@
 ﻿
-using System.Net.Http.Headers;
-using System.Reflection.Metadata;
-using System.Security.Cryptography;
+using Regression_analysis;
 
-using MathNet.Numerics.Optimization;
-
-using Microsoft.VisualBasic.FileIO;
-
-namespace Regression_analysis
+namespace RegressionAnalysisLibrary
 {
 
-    public interface IOprimizator {
+    public interface IOprimizator
+    {
         string Name { get; }
 
         bool IsUseGradient { get; }
@@ -83,11 +78,11 @@ namespace Regression_analysis
             Vectors xk,
             Vectors pk,
             double initialAlpha,
-            double eps= 1e-4,
+            double eps = 1e-4,
             int maxIter = 20
             )
         {
-            OptRes result = new OptRes()
+            var result = new OptRes()
             {
                 CountCalcFunc = 2,
                 CountCalcGradient = 1,
@@ -101,28 +96,29 @@ namespace Regression_analysis
             Vectors Gradient(Vectors x) => grad(model, x, @params);
             double Function(Vectors x) => func(model, x, @params);
 
-            double f0 = Function(xk);
-            double g0 = Gradient(xk).Dot(pk.T())[0];
+            var f0 = Function(xk);
+            var g0 = Gradient(xk).Dot(pk.T())[0];
 
             if (g0 >= 0)
                 throw new ArgumentException("Direction is not a descent direction");
 
-            double alpha1 = initialAlpha;
-            double f1 = Function(xk + (pk * alpha1));
+            var alpha1 = initialAlpha;
+            var f1 = Function(xk + pk * alpha1);
 
-            int iter = 0;
+            var iter = 0;
             while (iter < maxIter)
             {
                 // Квадратичная интерполяция
-                double alpha = QuadraticInterpolationStep(alpha0, f0, g0, alpha1, f1);
+                var alpha = QuadraticInterpolationStep(alpha0, f0, g0, alpha1, f1);
 
                 // Ограничение максимального шага
                 alpha = Math.Min(alpha, 10 * alpha1);
 
                 // Проверка условия Армихо
-                double fAlpha = Function(xk + (pk * alpha));
+                var fAlpha = Function(xk + pk * alpha);
                 result.CountCalcFunc++;
-                if (fAlpha <= f0 + eps * alpha * g0) {
+                if (fAlpha <= f0 + eps * alpha * g0)
+                {
                     result.Convergence = true;
                     result.MinPoint = new Vectors([alpha]);
                     return result;
@@ -153,7 +149,7 @@ namespace Regression_analysis
                                                double alpha1, double f1)
         {
             // Квадратичная интерполяция между alpha0 и alpha1
-            double denominator = 2 * (f1 - f0 - g0 * (alpha1 - alpha0));
+            var denominator = 2 * (f1 - f0 - g0 * (alpha1 - alpha0));
             if (denominator <= 0)
                 return (alpha0 + alpha1) / 2; // Если интерполяция неудачна, берем середину
 
@@ -193,14 +189,14 @@ namespace Regression_analysis
                 return result;
             }
 
-            double a = minalpha;
-            double b = maxalpha;
-            
-            double x1 = b - (b - a) / Phi;
-            double x2 = a + (b - a) / Phi;
-            
-            double f1 = Func(x1); result.CountCalcFunc++;
-            double f2 = Func(x2); result.CountCalcFunc++;
+            var a = minalpha;
+            var b = maxalpha;
+
+            var x1 = b - (b - a) / Phi;
+            var x2 = a + (b - a) / Phi;
+
+            var f1 = Func(x1); result.CountCalcFunc++;
+            var f2 = Func(x2); result.CountCalcFunc++;
 
             for (; result.NumIteration < maxIter; result.NumIteration++)
             {
@@ -268,39 +264,40 @@ namespace Regression_analysis
             if (dffunc is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
 
             Vectors Gradient(Vectors x) => dffunc(model, x, @params);
-            int n = x0.Size;
-            Vectors xk = x0.Clone();
-            Vectors gfk = Gradient(xk);
-            Vectors pk = -gfk;
+            var n = x0.Size;
+            var xk = x0.Clone();
+            var gfk = Gradient(xk);
+            var pk = -gfk;
 
-            OptRes result = new OptRes()
+            var result = new OptRes()
             {
                 CountCalcFunc = 0,
                 CountCalcGradient = 1,
                 Norm = Vectors.Norm(gfk),
                 NumIteration = 0
             };
-            int stepsSinceReset = 0;
+            var stepsSinceReset = 0;
 
             while (result.Norm > eps && result.NumIteration < maxIter)
             {
                 //OptRes linResult = QuadraticInterpolation.Optimisate(func, dffunc, model, @params, xk, pk, 1.0);
-                
+
                 //result.CountCalcGradient += linResult.CountCalcGradient;
                 //result.CountCalcFunc += linResult.CountCalcFunc;
-                double alpha = LineSearch(func, dffunc, model, @params, xk, pk);
+                var alpha = LineSearch(func, dffunc, model, @params, xk, pk);
 
-                Vectors xkp1 = xk + alpha * pk;
+                var xkp1 = xk + alpha * pk;
                 result.Norm = Vectors.Norm(xkp1 - xk);
-                Vectors gfkp1 = Gradient(xkp1);
+                var gfkp1 = Gradient(xkp1);
 
                 stepsSinceReset++;
-                if (stepsSinceReset < (2 * n))
+                if (stepsSinceReset < 2 * n)
                 {
-                    double w = ScalarMult(gfkp1, gfkp1) / double.Max(ScalarMult(gfk, gfk), double.Epsilon);
-                    pk = (-gfkp1 + w * pk);
+                    var w = ScalarMult(gfkp1, gfkp1) / double.Max(ScalarMult(gfk, gfk), double.Epsilon);
+                    pk = -gfkp1 + w * pk;
                 }
-                else {
+                else
+                {
                     pk = -gfkp1;
                     stepsSinceReset = 0;
                 }
@@ -319,33 +316,33 @@ namespace Regression_analysis
             LogLikelihoodGradient grad,
             IModel model,
             Vectors[] parameters,
-            Vectors x, 
+            Vectors x,
             Vectors d,
             int maxIter = 20,
             double tol = 1e-4
             )
         {
-            double alpha = 1.0;
-            double c = 0.1; // Параметр для условия Армихо
-            double rho = 0.5; // Коэффициент уменьшения шага
+            var alpha = 1.0;
+            var c = 0.1; // Параметр для условия Армихо
+            var rho = 0.5; // Коэффициент уменьшения шага
 
             Vectors Gradient(Vectors x) => grad(model, x, parameters);
             double Function(Vectors x) => f(model, x, parameters);
 
 
-            double f0 = Function(x);
-            Vectors g0 = Gradient(x);
-            double slope0 = g0.Dot(d.T())[0];
+            var f0 = Function(x);
+            var g0 = Gradient(x);
+            var slope0 = g0.Dot(d.T())[0];
 
-            for (int i = 0; i < maxIter; i++)
+            for (var i = 0; i < maxIter; i++)
             {
-                Vectors xNew = x + (d * alpha);
-                double fAlpha = Function(xNew);
+                var xNew = x + d * alpha;
+                var fAlpha = Function(xNew);
 
                 // Квадратичная интерполяция
                 if (i > 0 && fAlpha > f0 + c * alpha * slope0)
                 {
-                    double alphaQuad = -slope0 * alpha * alpha / (2 * (fAlpha - f0 - slope0 * alpha));
+                    var alphaQuad = -slope0 * alpha * alpha / (2 * (fAlpha - f0 - slope0 * alpha));
                     alpha = Math.Max(alphaQuad, alpha * rho);
                 }
 
@@ -386,12 +383,12 @@ namespace Regression_analysis
             var tmp = new Vectors([minValue, maxValue]);
             for (; result.NumberRebounds < maxIter && !result.Convergence; result.NumberRebounds++)
             {
-                #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+#pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                 result.InitParametrs = rand.Generate((1, model.CountRegressor), tmp);
-                #pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
-                #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
+#pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
-                #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
+#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 if (resMethod.Convergence)
                 {
                     result.Convergence = true;
@@ -434,15 +431,15 @@ namespace Regression_analysis
             if (!initialGuess.IsVector()) throw new Exception("InitParam должен быть вектором.");
             if (grad is null) throw new ArgumentException($"В {Name} для оптимизации используется градиент для оптимизации, но dffunc является null");
 
-            int n = initialGuess.Size;
-            Vectors x = initialGuess.Clone();
+            var n = initialGuess.Size;
+            var x = initialGuess.Clone();
 
             Vectors Gradient(Vectors x) => grad(model, x, parameters);
 
-            Vectors g = Gradient(x);
-            Vectors H = Vectors.Eig((n, n));
+            var g = Gradient(x);
+            var H = Vectors.Eig((n, n));
 
-            OptRes result = new OptRes()
+            var result = new OptRes()
             {
                 CountCalcFunc = 0,
                 NumIteration = 0,
@@ -453,21 +450,21 @@ namespace Regression_analysis
 
             while (result.NumIteration < maxIter && result.Norm > tol)
             {
-                Vectors d = -(H & g.T()).T(); // Направление спуска
+                var d = -(H & g.T()).T(); // Направление спуска
 
                 // Линейный поиск с квадратичной интерполяцией
-                OptRes linSearch = QuadraticInterpolation.Optimisate(func, grad, model, parameters, x, d, 1.0);
+                var linSearch = QuadraticInterpolation.Optimisate(func, grad, model, parameters, x, d, 1.0);
 
                 result.CountCalcFunc += linSearch.CountCalcFunc;
                 result.CountCalcGradient += linSearch.CountCalcGradient;
-                double alpha = linSearch.MinPoint[0];
+                var alpha = linSearch.MinPoint[0];
 
-                Vectors xNew = Vectors.Add(x, d * alpha);
-                Vectors gNew = Gradient(xNew);
+                var xNew = Vectors.Add(x, d * alpha);
+                var gNew = Gradient(xNew);
                 result.CountCalcGradient++;
 
-                Vectors deltaX = xNew - x;
-                Vectors deltaG = gNew - g;
+                var deltaX = xNew - x;
+                var deltaG = gNew - g;
 
                 result.Norm = Vectors.Norm(deltaX);
 
@@ -487,34 +484,26 @@ namespace Regression_analysis
 
         private static Vectors UpdateHessianApproximationDFP(Vectors H, Vectors deltaX, Vectors deltaG)
         {
-            int n = deltaX.Size;
-            Vectors HNew = H.Clone();
+            var n = deltaX.Size;
+            var HNew = H.Clone();
 
-            Vectors HdeltaG = (H & deltaG.T()).T();
-            double deltaGtHdeltaG = deltaG.Dot(HdeltaG.T())[0];
-            double deltaXtDeltaG = deltaX.Dot(deltaG.T())[0];
+            var HdeltaG = (H & deltaG.T()).T();
+            var deltaGtHdeltaG = deltaG.Dot(HdeltaG.T())[0];
+            var deltaXtDeltaG = deltaX.Dot(deltaG.T())[0];
 
             // Проверка условия кривизны
             if (deltaXtDeltaG <= 0)
                 return H; // Не обновляем H если условие кривизны не выполняется
 
             // Первое слагаемое DFP
-            for (int i = 0; i < n; i++)
-            {
-                for (int j = 0; j < n; j++)
-                {
+            for (var i = 0; i < n; i++)
+                for (var j = 0; j < n; j++)
                     HNew[i, j] += deltaX[i] * deltaX[j] / deltaXtDeltaG;
-                }
-            }
 
             // Второе слагаемое DFP
-            for (int i = 0; i < n; i++)
-            {
-                for (int j = 0; j < n; j++)
-                {
+            for (var i = 0; i < n; i++)
+                for (var j = 0; j < n; j++)
                     HNew[i, j] -= HdeltaG[i] * HdeltaG[j] / deltaGtHdeltaG;
-                }
-            }
 
             return HNew;
         }
@@ -610,49 +599,47 @@ namespace Regression_analysis
             if (!x0.IsVector() || x0.Shape.Item1 != 1)
                 throw new ArgumentException("Initial point must be a row vector");
 
-            int n = x0.Shape.Item2;
+            var n = x0.Shape.Item2;
             if (n < 2)
                 throw new ArgumentException("Dimension must be at least 2");
 
             // Инициализация симплекса (каждый СТОЛБЕЦ D — вершина размерности N)
-            Vectors d = InitializeSimplex(x0, n, T);
-            Vectors resF = EvaluateSimplex(func, ref model, ref @params, d, ref result.CountCalcFunc);
+            var d = InitializeSimplex(x0, n, T);
+            var resF = EvaluateSimplex(func, ref model, ref @params, d, ref result.CountCalcFunc);
 
             while (result.NumIteration < maxIter)
             {
-                int indexMin = Vectors.MinIndex(resF);
-                int indexMax = Vectors.MaxIndex(resF);
-                int indexSecondMax = Vectors.SecondMaxIndex(resF, indexMax);
+                var indexMin = Vectors.MinIndex(resF);
+                var indexMax = Vectors.MaxIndex(resF);
+                var indexSecondMax = Vectors.SecondMaxIndex(resF, indexMax);
 
                 // Критерий останова
                 if ((result.Norm = Vectors.NormDifference(resF, resF[indexMin])) < eps)
                     break;
 
                 // Центр тяжести (исключая худшую вершину)
-                Vectors xc = CalculateCentroid(d, n, indexMax);
+                var xc = CalculateCentroid(d, n, indexMax);
 
                 // Отражение
-                Vectors xr = ReflectPoint(xc, Vectors.GetColumn(d, indexMax), Alpha);
-                double fr = func(model, xr, @params);
+                var xr = ReflectPoint(xc, Vectors.GetColumn(d, indexMax), Alpha);
+                var fr = func(model, xr, @params);
                 result.CountCalcFunc++;
 
                 if (fr < resF[indexMin])
                 {
                     // Растяжение
-                    Vectors xe = ExpandPoint(xc, xr, Gamma);
-                    double fe = func(model, xe, @params);
+                    var xe = ExpandPoint(xc, xr, Gamma);
+                    var fe = func(model, xe, @params);
                     result.CountCalcFunc++;
-                    UpdatePoint(d, resF, indexMax, (fe < fr) ? xe : xr, Math.Min(fe, fr));
+                    UpdatePoint(d, resF, indexMax, fe < fr ? xe : xr, Math.Min(fe, fr));
                 }
                 else if (fr < resF[indexSecondMax])
-                {
                     UpdatePoint(d, resF, indexMax, xr, fr);
-                }
                 else
                 {
                     // Сжатие
-                    Vectors xs = ContractPoint(xc, Vectors.GetColumn(d, indexMax), Beta);
-                    double fs = func(model, xs, @params);
+                    var xs = ContractPoint(xc, Vectors.GetColumn(d, indexMax), Beta);
+                    var fs = func(model, xs, @params);
                     result.CountCalcFunc++;
                     if (fs < resF[indexMax])
                         UpdatePoint(d, resF, indexMax, xs, fs);
@@ -680,7 +667,7 @@ namespace Regression_analysis
             Vectors? x0 = null
             )
         {
-            var rand = seed == null ?  new() : (UniformDistribution) new(seed);
+            var rand = seed == null ? new() : (UniformDistribution) new(seed);
             OptRes resMethod;
             var tmp = new Vectors([minValue, maxValue]);
             OptResExtended result = new()
@@ -697,12 +684,12 @@ namespace Regression_analysis
             result.CountCalcFunc = resMethod.CountCalcFunc;
             for (; result.NumberRebounds < maxIter && !result.Convergence; result.NumberRebounds++)
             {
-                #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+#pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                 result.InitParametrs = rand.Generate((1, model.CountRegressor), tmp);
-                #pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
-                #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
+#pragma warning restore CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
+#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 resMethod = Optimisate(func, dffunc, model, result.InitParametrs, @params, eps);
-                #pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
+#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                 if (resMethod.Convergence)
                 {
                     result.Convergence = true;
@@ -727,34 +714,30 @@ namespace Regression_analysis
 
         private static Vectors InitializeSimplex(Vectors x0, int n, double t)
         {
-            Vectors d = Vectors.InitVectors((n, n + 1));
-            double d1 = t * (Math.Sqrt(n + 1) + n - 1) / (n * Math.Sqrt(2));
-            double d2 = t * (Math.Sqrt(n + 1) - 1) / (n * Math.Sqrt(2));
+            var d = Vectors.InitVectors((n, n + 1));
+            var d1 = t * (Math.Sqrt(n + 1) + n - 1) / (n * Math.Sqrt(2));
+            var d2 = t * (Math.Sqrt(n + 1) - 1) / (n * Math.Sqrt(2));
 
             // Первая вершина — x0
-            for (int i = 0; i < n; i++)
+            for (var i = 0; i < n; i++)
                 d[i, 0] = x0[i];
 
             // Остальные вершины
-            for (int i = 0; i < n; i++)
-            {
-                for (int j = 1; j <= n; j++)
-                {
+            for (var i = 0; i < n; i++)
+                for (var j = 1; j <= n; j++)
                     d[i, j] = i == j - 1 ? x0[i] + d1 : x0[i] + d2;
-                }
-            }
             return d;
         }
 
         private static Vectors EvaluateSimplex(LogLikelihoodFunction func, ref IModel model, ref Vectors[] @params, Vectors d, ref int countFuncEvals)
         {
-            int verticesCount = d.Shape.Item2; // Число столбцов (N+1 вершин)
+            var verticesCount = d.Shape.Item2; // Число столбцов (N+1 вершин)
 
-            Vectors resF = Vectors.Zeros((1, verticesCount)); // Вектор значений функции
+            var resF = Vectors.Zeros((1, verticesCount)); // Вектор значений функции
 
-            for (int i = 0; i < verticesCount; i++)
+            for (var i = 0; i < verticesCount; i++)
             {
-                Vectors vertex = Vectors.GetColumn(d, i); // Берём i-ю вершину (столбец)
+                var vertex = Vectors.GetColumn(d, i); // Берём i-ю вершину (столбец)
                 resF[i] = func(model, vertex, @params);
                 countFuncEvals++;
             }
@@ -770,12 +753,10 @@ namespace Regression_analysis
 
         private static Vectors CalculateCentroid(Vectors d, int n, int excludeIndex)
         {
-            Vectors xc = Vectors.Zeros((1, n));
-            for (int j = 0; j <= n; j++)
-            {
+            var xc = Vectors.Zeros((1, n));
+            for (var j = 0; j <= n; j++)
                 if (j != excludeIndex)
                     xc += Vectors.GetColumn(d, j);
-            }
             return xc / n;
         }
 
@@ -803,18 +784,18 @@ namespace Regression_analysis
             LogLikelihoodFunction func,
             ref int countFuncEvals)
         {
-            int verticesCount = d.Shape.Item2; // Число вершин (N+1)
+            var verticesCount = d.Shape.Item2; // Число вершин (N+1)
 
-            for (int j = 0; j < verticesCount; j++)
+            for (var j = 0; j < verticesCount; j++)
             {
-                Vectors currentVertex = Vectors.GetColumn(d, j);
+                var currentVertex = Vectors.GetColumn(d, j);
 
                 // Пропускаем лучшую вершину
                 if (currentVertex.Equals(xBest))
                     continue;
 
                 // Сжатие: x_new = xBest + 0.5*(x_old - xBest)
-                Vectors newVertex = xBest + 0.5 * (currentVertex - xBest);
+                var newVertex = xBest + 0.5 * (currentVertex - xBest);
 
                 Vectors.SetColumn(d, newVertex, j); // Обновляем столбец
                 resF[j] = func(model, newVertex, @params); // Пересчитываем значение функции
@@ -858,6 +839,6 @@ namespace Regression_analysis
                         -(2*vec[1] - 4)/(9 * denominator1) - 3*(vec[1] - 1) / (2*denominator2)]) * -1;
         }
     }
-    
+
 
 }

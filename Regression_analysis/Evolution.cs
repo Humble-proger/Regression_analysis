@@ -1,17 +1,11 @@
-﻿using System.Diagnostics;
-using System.Linq.Expressions;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
+﻿using System.Reflection;
 
-using MathNet.Numerics.Distributions;
-using MathNet.Numerics.Optimization;
+using Regression_analysis;
 
-namespace Regression_analysis
+namespace RegressionAnalysisLibrary
 {
-    public interface IParameterEstimator 
-    { 
+    public interface IParameterEstimator
+    {
         string Name { get; }
         public abstract Vectors EstimateParameters(IModel model, Vectors[] otherParameters);
     }
@@ -78,14 +72,15 @@ namespace Regression_analysis
     }
 
     [Evolution("Метод наименьших квадратов (МНК)")]
-    public class MNKEstimator : IParameterEstimator {
+    public class MNKEstimator : IParameterEstimator
+    {
         public string Name => "MNK";
 
-        public Vectors EstimateParameters(IModel model, Vectors[] otherParameters) 
+        public Vectors EstimateParameters(IModel model, Vectors[] otherParameters)
         {
             var x = otherParameters[1];
             var y = otherParameters[2];
-            
+
             if (x.Shape.Item2 != model.CountFacts)
                 throw new ArgumentException("Вектор 'x' не соответствует количеству факторов в моделе 'model'");
 
@@ -98,7 +93,7 @@ namespace Regression_analysis
             try
             {
                 var tMatrixX = matrixX.T();
-                estimatedTheta = ((Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & y.T()).T();
+                estimatedTheta = (Vectors.Inv(tMatrixX & matrixX) & tMatrixX & y.T()).T();
             }
             catch
             {
@@ -109,9 +104,9 @@ namespace Regression_analysis
     }
 
     [Evolution("Метод максимального правдоподобия (ММП)")]
-    public class MMKEstimator : IParameterEstimator 
+    public class MMPEstimator : IParameterEstimator
     {
-        public MMKConfiguration Config { get; set; } = MMKConfigLoader.Normal();
+        public MMPConfiguration Config { get; set; } = MMPConfigLoader.Normal();
 
         public string Name => "MMP";
 
@@ -134,7 +129,7 @@ namespace Regression_analysis
                 try
                 {
                     var tMatrixX = matrixX.T();
-                    estimatedTheta = (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & y.T();
+                    estimatedTheta = Vectors.Inv(tMatrixX & matrixX) & tMatrixX & y.T();
                 }
                 catch
                 {
@@ -142,87 +137,83 @@ namespace Regression_analysis
                 }
                 return estimatedTheta;
             }
-            else 
-            {
+            else
                 if (Config.MNKEstuminate)
+            {
+                Vectors initParams;
+                try
                 {
-                    Vectors initParams;
-                    try
-                    {
-                        var matrixX = model.CreateMatrixX(otherParameters[1]);
-                        var tMatrixX = matrixX.T();
-                        var mean = Config.Mean(otherParameters[0]);
-                        initParams = mean is null
-                            ? (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & otherParameters[2].T()
-                            : (Vectors.Inv(tMatrixX & matrixX) & tMatrixX) & (otherParameters[2] - (double) mean).T();
-                    }
-                    catch
-                    {
-                        throw new Exception("Не правильные данные");
-                    }
-
-                    return Config.IsMultiIterationOptimisation
-                        ? Config.Oprimizator.OptimisateRandomInit(
-                            Config.Functions.LogLikelihood,
-                            Config.Functions.Gradient,
-                            model,
-                            otherParameters,
-                            Config.Tolerance,
-                            maxIter: Config.MaxIteration,
-                            seed: Config.Seed,
-                            x0: initParams.T()
-                            ).MinPoint
-                        : Config.Oprimizator.Optimisate(
-                            Config.Functions.LogLikelihood,
-                            Config.Functions.Gradient,
-                            model,
-                            initParams.T(),
-                            otherParameters,
-                            Config.Tolerance,
-                            maxIter: Config.MaxIteration
-                            ).MinPoint
-                        ;
+                    var matrixX = model.CreateMatrixX(otherParameters[1]);
+                    var tMatrixX = matrixX.T();
+                    var mean = Config.Mean(otherParameters[0]);
+                    initParams = mean is null
+                        ? Vectors.Inv(tMatrixX & matrixX) & tMatrixX & otherParameters[2].T()
+                        : Vectors.Inv(tMatrixX & matrixX) & tMatrixX & (otherParameters[2] - (double) mean).T();
                 }
-                else {
-                    return Config.IsMultiIterationOptimisation
-                        ? Config.Oprimizator.OptimisateRandomInit(
-                            Config.Functions.LogLikelihood,
-                            Config.Functions.Gradient,
-                            model,
-                            otherParameters,
-                            Config.Tolerance,
-                            maxIter: Config.MaxIteration,
-                            seed: Config.Seed
-                            ).MinPoint
-                        : Config.Oprimizator.Optimisate(
-                            Config.Functions.LogLikelihood,
-                            Config.Functions.Gradient,
-                            model,
-                            Vectors.Zeros((1, model.CountRegressor)),
-                            otherParameters,
-                            Config.Tolerance,
-                            maxIter: Config.MaxIteration
-                            ).MinPoint;
+                catch
+                {
+                    throw new Exception("Не правильные данные");
                 }
 
+                return Config.IsMultiIterationOptimisation
+                    ? Config.Oprimizator.OptimisateRandomInit(
+                        Config.Functions.LogLikelihood,
+                        Config.Functions.Gradient,
+                        model,
+                        otherParameters,
+                        Config.Tolerance,
+                        maxIter: Config.MaxIteration,
+                        seed: Config.Seed,
+                        x0: initParams.T()
+                        ).MinPoint
+                    : Config.Oprimizator.Optimisate(
+                        Config.Functions.LogLikelihood,
+                        Config.Functions.Gradient,
+                        model,
+                        initParams.T(),
+                        otherParameters,
+                        Config.Tolerance,
+                        maxIter: Config.MaxIteration
+                        ).MinPoint
+                    ;
             }
+            else
+                return Config.IsMultiIterationOptimisation
+                    ? Config.Oprimizator.OptimisateRandomInit(
+                        Config.Functions.LogLikelihood,
+                        Config.Functions.Gradient,
+                        model,
+                        otherParameters,
+                        Config.Tolerance,
+                        maxIter: Config.MaxIteration,
+                        seed: Config.Seed
+                        ).MinPoint
+                    : Config.Oprimizator.Optimisate(
+                        Config.Functions.LogLikelihood,
+                        Config.Functions.Gradient,
+                        model,
+                        Vectors.Zeros((1, model.CountRegressor)),
+                        otherParameters,
+                        Config.Tolerance,
+                        maxIter: Config.MaxIteration
+                        ).MinPoint;
         }
     }
 
-    public static class MMKConfigLoader 
+    public static class MMPConfigLoader
     {
-        public static MMKConfiguration Normal
+        public static MMPConfiguration Normal
             (
-            bool ismultiiteration = true, 
-            int maxattepts = 100, 
-            int maxiteration = 1000, 
-            double tol = 1e-7, 
+            bool ismultiiteration = true,
+            int maxattepts = 100,
+            int maxiteration = 1000,
+            double tol = 1e-7,
             int? seed = null
-            ) 
+            )
         {
-            return new MMKConfiguration()
+            return new MMPConfiguration()
             {
-                Functions = new NormalMMKDistribution(),
+                Functions = new NormalMMPDistribution(),
                 Oprimizator = new DFPOptimizator(),
                 Mean = NormalDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
@@ -232,29 +223,7 @@ namespace Regression_analysis
                 Seed = seed
             };
         }
-        public static MMKConfiguration Exponential
-            (
-            bool ismultiiteration = true,
-            int maxattepts = 100,
-            int maxiteration = 1000,
-            double tol = 1e-7,
-            int? seed = null
-            ) 
-        {
-            return new MMKConfiguration()
-            {
-                Functions = new ExponentialMMKDistribution(),
-                Oprimizator = new NelderMeadOptimizator(),
-                Mean = ExponentialDistribution.Mean,
-                IsMultiIterationOptimisation = ismultiiteration,
-                MaxAttempts = maxattepts,
-                Tolerance = tol,
-                MaxIteration= maxiteration,
-                Seed = seed,
-            };
-        }
-
-        public static MMKConfiguration Laplace
+        public static MMPConfiguration Exponential
             (
             bool ismultiiteration = true,
             int maxattepts = 100,
@@ -263,9 +232,31 @@ namespace Regression_analysis
             int? seed = null
             )
         {
-            return new MMKConfiguration()
+            return new MMPConfiguration()
             {
-                Functions = new LaplaceMMKDistribution(),
+                Functions = new ExponentialMMPDistribution(),
+                Oprimizator = new NelderMeadOptimizator(),
+                Mean = ExponentialDistribution.Mean,
+                IsMultiIterationOptimisation = ismultiiteration,
+                MaxAttempts = maxattepts,
+                Tolerance = tol,
+                MaxIteration = maxiteration,
+                Seed = seed,
+            };
+        }
+
+        public static MMPConfiguration Laplace
+            (
+            bool ismultiiteration = true,
+            int maxattepts = 100,
+            int maxiteration = 1000,
+            double tol = 1e-7,
+            int? seed = null
+            )
+        {
+            return new MMPConfiguration()
+            {
+                Functions = new LaplaceMMPDistribution(),
                 Oprimizator = new NelderMeadOptimizator(),
                 Mean = LaplaceDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
@@ -275,7 +266,7 @@ namespace Regression_analysis
                 Seed = seed
             };
         }
-        public static MMKConfiguration Cauchy
+        public static MMPConfiguration Cauchy
             (
                 bool ismultiiteration = true,
                 int maxattepts = 100,
@@ -284,9 +275,9 @@ namespace Regression_analysis
                 int? seed = null
             )
         {
-            return new MMKConfiguration()
+            return new MMPConfiguration()
             {
-                Functions = new CauchyMMKDistribution(),
+                Functions = new CauchyMMPDistribution(),
                 Oprimizator = new DFPOptimizator(),
                 Mean = CauchyDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
@@ -298,7 +289,7 @@ namespace Regression_analysis
             };
         }
 
-        public static MMKConfiguration Gamma
+        public static MMPConfiguration Gamma
             (
                 bool ismultiiteration = true,
                 int maxattepts = 100,
@@ -307,9 +298,9 @@ namespace Regression_analysis
                 int? seed = null
             )
         {
-            return new MMKConfiguration()
+            return new MMPConfiguration()
             {
-                Functions = new GammaMMKDistribution(),
+                Functions = new GammaMMPDistribution(),
                 Oprimizator = new NelderMeadOptimizator(),
                 Mean = GammaDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
@@ -319,7 +310,7 @@ namespace Regression_analysis
                 Seed = seed
             };
         }
-        public static MMKConfiguration Uniform
+        public static MMPConfiguration Uniform
             (
                 bool ismultiiteration = true,
                 int maxattepts = 100,
@@ -328,9 +319,9 @@ namespace Regression_analysis
                 int? seed = null
             )
         {
-            return new MMKConfiguration()
+            return new MMPConfiguration()
             {
-                Functions = new UniformMMKDistribution(),
+                Functions = new UniformMMPDistribution(),
                 Oprimizator = new NelderMeadOptimizator(),
                 Mean = UniformDistribution.Mean,
                 IsMultiIterationOptimisation = ismultiiteration,
@@ -340,7 +331,7 @@ namespace Regression_analysis
                 Seed = seed
             };
         }
-        public static MMKConfiguration Load(
+        public static MMPConfiguration Load(
             TypeDisribution typeDisribution,
             bool ismultiiteration = true,
             int maxattepts = 100,
@@ -349,45 +340,47 @@ namespace Regression_analysis
             int? seed = null
             )
         {
-            switch (typeDisribution) {
+            switch (typeDisribution)
+            {
                 case TypeDisribution.Normal:
-                    return MMKConfigLoader.Normal(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                    return Normal(ismultiiteration, maxattepts, maxiteration, tol, seed);
                 case TypeDisribution.Laplace:
-                    return MMKConfigLoader.Laplace(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                    return Laplace(ismultiiteration, maxattepts, maxiteration, tol, seed);
                 case TypeDisribution.Exponential:
-                    return MMKConfigLoader.Exponential(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                    return Exponential(ismultiiteration, maxattepts, maxiteration, tol, seed);
                 case TypeDisribution.Cauchy:
-                    return MMKConfigLoader.Cauchy(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                    return Cauchy(ismultiiteration, maxattepts, maxiteration, tol, seed);
                 case TypeDisribution.Uniform:
-                    return MMKConfigLoader.Uniform(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                    return Uniform(ismultiiteration, maxattepts, maxiteration, tol, seed);
                 case TypeDisribution.Gamma:
-                    return MMKConfigLoader.Gamma(ismultiiteration, maxattepts, maxiteration, tol, seed);
+                    return Gamma(ismultiiteration, maxattepts, maxiteration, tol, seed);
                 default:
                     throw new ArgumentException("Нет такого распределения");
             }
         }
     }
 
-    public static class NumericGradient {
-        public static Vectors ComputeGradient(LogLikelihoodFunction f, Vectors x, IModel model, Vectors[] parameters ,double h = 1e-5)
+    public static class NumericGradient
+    {
+        public static Vectors ComputeGradient(LogLikelihoodFunction f, Vectors x, IModel model, Vectors[] parameters, double h = 1e-5)
         {
-            int n = x.Size;
-            Vectors gradient = Vectors.InitVectors((1, n));
-            Vectors xPh = x.Clone();
-            Vectors xMh = x.Clone();
+            var n = x.Size;
+            var gradient = Vectors.InitVectors((1, n));
+            var xPh = x.Clone();
+            var xMh = x.Clone();
 
-            for (int i = 0; i < n; i++)
+            for (var i = 0; i < n; i++)
             {
                 // Сохраняем исходное значение
-                double originalValue = x[i];
+                var originalValue = x[i];
 
                 // Вычисляем f(x + h)
                 xPh[i] = originalValue + h;
-                double fPh = f(model, xPh, parameters);
+                var fPh = f(model, xPh, parameters);
 
                 // Вычисляем f(x - h)
                 xMh[i] = originalValue - h;
-                double fMh = f(model, xMh, parameters);
+                var fMh = f(model, xMh, parameters);
 
                 // Центральная разностная производная
                 gradient[i] = (fPh - fMh) / (2 * h);
@@ -402,19 +395,21 @@ namespace Regression_analysis
     }
 
 
-    public static class Test {
-        public static void Main(string[] args) {
-            
-            string h = "H0";
+    public static class Test
+    {
+        public static void Main(string[] args)
+        {
+
+            var h = "H0";
             var n = 1000;
             var thetaH0 = new Vectors([5, 2, 3, 7]);
-            var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n)) ;
+            var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n));
             var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
-            var paramDistribution = new Vectors([0, 30, 1.2]);
-            int numparam = 1;
+            var paramDistribution = new Vectors([0, 30, 0.7]);
+            var numparam = 1;
 
-            var e_teml = GammaDistribution.Generate((1, 10000), paramDistribution, new Random());
-            e_teml.SaveToDAT($"D:/Program/Budancev/ОР/Samples/Gamma.dat", "Gamma (0, 30, 2.7)");
+            var e_teml = GammaDistribution.Generate((1, 100000), paramDistribution, new Random());
+            e_teml.SaveToDAT($"D:/Program/Budancev/ОР/Samples/Gamma07.dat", "Gamma (0, 30, 0.7)");
             /*
             
             Vectors planX = new Vectors([[-1, -1, -1],

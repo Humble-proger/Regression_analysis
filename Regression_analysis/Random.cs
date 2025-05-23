@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
-using System.Runtime.CompilerServices;
+
+using RegressionAnalysisLibrary;
 
 namespace Regression_analysis
 {
@@ -195,15 +196,7 @@ namespace Regression_analysis
 
         private readonly Random _random = seed is null ? new Random() : new Random((int) seed);
         private static double Laplace(double loc, double scale, in Random rand) {
-            var u = rand.NextDouble();
-            if (u < 0.5)
-            {
-                return loc + scale * double.Log(2 * u);
-            }
-            else if (u > 0.5) {
-                return loc - scale * double.Log(2 * (1 - u));
-            }
-            return loc;
+            return loc - scale * double.Sign(-1 + rand.NextDouble() * 2) * double.Log(1 - rand.NextDouble());
         }
         private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
         public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
