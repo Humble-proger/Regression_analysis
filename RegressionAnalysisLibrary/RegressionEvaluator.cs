@@ -92,7 +92,9 @@ namespace RegressionAnalysisLibrary
                 if (dimension is null)
                 {
                     var g = new Vectors([-1e+5, 1e+5]);
+#pragma warning disable CS8629 // Тип значения, допускающего NULL, может быть NULL.
                     double a = (double) UniformDistribution.Generate(g, generator), b = (double) UniformDistribution.Generate(g, generator);
+#pragma warning restore CS8629 // Тип значения, допускающего NULL, может быть NULL.
                     if (a > b)
                         (a, b) = (b, a);
                     dimension = [(a, b)];
@@ -114,7 +116,9 @@ namespace RegressionAnalysisLibrary
                         {
                             token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
+#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist, localGenerator.Value);
+#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
@@ -181,7 +185,9 @@ namespace RegressionAnalysisLibrary
                         {
                             token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
+#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist, localGenerator.Value);
+#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             y = u + vectorE;
@@ -267,7 +273,9 @@ namespace RegressionAnalysisLibrary
                 if (dimension is null)
                 {
                     var g = new Vectors([-1e+5, 1e+5]);
+#pragma warning disable CS8629 // Тип значения, допускающего NULL, может быть NULL.
                     double a = (double) UniformDistribution.Generate(g, generator), b = (double) UniformDistribution.Generate(g, generator);
+#pragma warning restore CS8629 // Тип значения, допускающего NULL, может быть NULL.
                     if (a > b)
                         (a, b) = (b, a);
                     dimension = [(a, b)];
@@ -287,7 +295,9 @@ namespace RegressionAnalysisLibrary
                         {
                             token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
+#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist, localGenerator.Value);
+#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
@@ -377,7 +387,9 @@ namespace RegressionAnalysisLibrary
                         {
                             token.ThrowIfCancellationRequested();
 #pragma warning disable CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
+#pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             vectorE = errorDist.Generate((1, countObservations), paramsDist, localGenerator.Value);
+#pragma warning restore CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
 #pragma warning restore CS8600 // Преобразование литерала, допускающего значение NULL или возможного значения NULL в тип, не допускающий значение NULL.
 #pragma warning disable CS8604 // Возможно, аргумент-ссылка, допускающий значение NULL.
                             y = u + vectorE;

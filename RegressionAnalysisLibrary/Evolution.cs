@@ -57,14 +57,9 @@ namespace RegressionAnalysisLibrary
 
 
     [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-    public class EvolutionAttribute : Attribute
+    public class EvolutionAttribute(string name) : Attribute
     {
-        public string Name { get; }
-
-        public EvolutionAttribute(string name)
-        {
-            Name = name;
-        }
+        public string Name { get; } = name;
     }
 
     [Evolution("Метод наименьших квадратов (МНК)")]

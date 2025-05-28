@@ -179,7 +179,7 @@
             Vectors Gradient(Vectors x) => grad(model, x, parameters);
 
             var g = Gradient(x);
-            var H = Vectors.Eig((n, n));
+            var h = Vectors.Eig((n, n));
 
             var result = new OptRes()
             {
@@ -192,7 +192,7 @@
 
             while (result.NumIteration < maxIter && result.Norm > tol)
             {
-                var d = -(H & g.T()).T(); // Направление спуска
+                var d = -(h & g.T()).T(); // Направление спуска
 
                 // Линейный поиск с квадратичной интерполяцией
                 var linSearch = QuadraticInterpolation.Optimisate(func, grad, model, parameters, x, d, 1.0);
@@ -211,7 +211,7 @@
                 result.Norm = Vectors.Norm(deltaX);
 
                 // Обновление приближения Гессиана по формуле DFP
-                H = UpdateHessianApproximationDFP(H, deltaX, deltaG);
+                h = UpdateHessianApproximationDFP(h, deltaX, deltaG);
 
                 x = xNew;
                 g = gNew;
@@ -224,30 +224,30 @@
             return result;
         }
 
-        private static Vectors UpdateHessianApproximationDFP(Vectors H, Vectors deltaX, Vectors deltaG)
+        private static Vectors UpdateHessianApproximationDFP(Vectors h, Vectors deltaX, Vectors deltaG)
         {
             var n = deltaX.Size;
-            var HNew = H.Clone();
+            var hNew = h.Clone();
 
-            var HdeltaG = (H & deltaG.T()).T();
-            var deltaGtHdeltaG = deltaG.Dot(HdeltaG.T())[0];
+            var hdeltaG = (h & deltaG.T()).T();
+            var deltaGtHdeltaG = deltaG.Dot(hdeltaG.T())[0];
             var deltaXtDeltaG = deltaX.Dot(deltaG.T())[0];
 
             // Проверка условия кривизны
             if (deltaXtDeltaG <= 0)
-                return H; // Не обновляем H если условие кривизны не выполняется
+                return h; // Не обновляем H если условие кривизны не выполняется
 
             // Первое слагаемое DFP
             for (var i = 0; i < n; i++)
                 for (var j = 0; j < n; j++)
-                    HNew[i, j] += deltaX[i] * deltaX[j] / deltaXtDeltaG;
+                    hNew[i, j] += deltaX[i] * deltaX[j] / deltaXtDeltaG;
 
             // Второе слагаемое DFP
             for (var i = 0; i < n; i++)
                 for (var j = 0; j < n; j++)
-                    HNew[i, j] -= HdeltaG[i] * HdeltaG[j] / deltaGtHdeltaG;
+                    hNew[i, j] -= hdeltaG[i] * hdeltaG[j] / deltaGtHdeltaG;
 
-            return HNew;
+            return hNew;
         }
 
         public OptResExtended OptimisateRandomInit(

@@ -64,16 +64,10 @@ namespace RegressionAnalysisLibrary
     }
 
     [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-    public class DistributionNameAttribute : Attribute
+    public class DistributionNameAttribute(string name, TypeDisribution type) : Attribute
     {
-        public string Name { get; }
-        public TypeDisribution Type { get; }
-
-        public DistributionNameAttribute(string name, TypeDisribution type)
-        {
-            Name = name;
-            Type = type;
-        }
+        public string Name { get; } = name;
+        public TypeDisribution Type { get; } = type;
     }
 
     public interface IRandomDistribution

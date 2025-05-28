@@ -304,7 +304,7 @@ namespace RegressionAnalysisApplication
                 return;
             }
             var model = SelectRegression.GetModel();
-            string directory = Path.GetDirectoryName(SavePath);
+            string? directory = Path.GetDirectoryName(SavePath);
             if (!Directory.Exists(directory)) {
                 ShowMessage.Execute("Ошибка: указанной папки сохранения не существует.");
                 return;
@@ -468,6 +468,7 @@ namespace RegressionAnalysisApplication
                 catch (Exception ex)
                 {
                     TextProgress = "Ошибка";
+                    ShowMessageBox($"Ошибка: {ex.Message}");
                 }
                 finally
                 {
@@ -551,6 +552,7 @@ namespace RegressionAnalysisApplication
                 catch (Exception ex)
                 {
                     TextProgress = "Ошибка";
+                    ShowMessageBox($"Ошибка: {ex.Message}");
                 }
                 finally
                 {
@@ -589,7 +591,7 @@ namespace RegressionAnalysisApplication
                 return;
             }
             var model = SelectRegression.GetModel();
-            string directory = Path.GetDirectoryName(SavePath);
+            string? directory = Path.GetDirectoryName(SavePath);
             if (!Directory.Exists(directory))
             {
                 ShowMessage.Execute("Ошибка: указанной папки сохранения не существует.");
@@ -692,7 +694,8 @@ namespace RegressionAnalysisApplication
                 }
                 catch (Exception ex)
                 {
-                    TextProgressParam = "Ошибка";
+                    TextProgress = "Ошибка";
+                    ShowMessageBox($"Ошибка: {ex.Message}");
                 }
                 finally
                 {
@@ -788,7 +791,8 @@ namespace RegressionAnalysisApplication
                 }
                 catch (Exception ex)
                 {
-                    TextProgressParam = "Ошибка";
+                    TextProgress = "Ошибка";
+                    ShowMessageBox($"Ошибка: {ex.Message}");
                 }
                 finally
                 {
@@ -881,7 +885,8 @@ namespace RegressionAnalysisApplication
                 }
                 catch (Exception ex)
                 {
-                    TextProgressParam = "Ошибка";
+                    TextProgress = "Ошибка";
+                    ShowMessageBox($"Ошибка: {ex.Message}");
                 }
                 finally
                 {
@@ -1505,10 +1510,9 @@ namespace RegressionAnalysisApplication
                 string json = File.ReadAllText(jsonPath);
                 var observations = JsonConvert.DeserializeObject<double[][]>(json);
 
-                if (observations == null || observations.Length == 0 || observations[0].Length == 0)
-                    throw new InvalidDataException("Некорректные данные выборки");
-
-                return observations;
+                return observations == null || observations.Length == 0 || observations[0].Length == 0
+                    ? throw new InvalidDataException("Некорректные данные выборки")
+                    : observations;
             }
             catch (Exception ex)
             {

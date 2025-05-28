@@ -29,9 +29,7 @@ namespace RegressionAnalysisApplication
 
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
         {
-            if (value is bool boolValue)
-                return !boolValue;
-            return value;
+            return value is bool boolValue ?  !boolValue : value;
         }
     }
 
