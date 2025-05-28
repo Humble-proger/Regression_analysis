@@ -12,10 +12,7 @@ using Microsoft.Win32;
 
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
-
-using Regression_analysis;
 using RegressionAnalysisLibrary;
-
 
 namespace RegressionAnalysisApplication
 {
@@ -69,10 +66,19 @@ namespace RegressionAnalysisApplication
         private bool _resetButtonActive = false;
 
         [ObservableProperty]
+        private bool _initValGenCheck = false;
+
+        [ObservableProperty]
+        private int _initValGen = 324;
+
+        [ObservableProperty]
         private bool _startButtonParamActive = true;
 
         [ObservableProperty]
         private bool _resetButtonParamActive = false;
+
+        [ObservableProperty]
+        private int _selectCriteria = 0;
 
         [ObservableProperty]
         private bool _parallelCheck = true;
@@ -91,10 +97,7 @@ namespace RegressionAnalysisApplication
         }
 
         [ObservableProperty]
-        private string _fileTitle = "Распределение статистик критерия SRE";
-
-        [ObservableProperty]
-        private string _fileTitleParam = "Распределение параметров регрессии.";
+        private string _fileTitle = "SRE MNK Uniform [0, 1] n500 N2000";
 
         [ObservableProperty]
         private string _fileData = "Не выбрано";
@@ -119,6 +122,9 @@ namespace RegressionAnalysisApplication
         [ObservableProperty]
         private string _savePath = "Не выбрано";
 
+        [ObservableProperty]
+        private int _currentTabIndex = 0;
+
         public IConfigurationRoot? Config;
 
         private CancellationTokenSource? _cancellationTokenSource;
@@ -132,6 +138,8 @@ namespace RegressionAnalysisApplication
         public ICommand StopCalculation { get; }
         public ICommand StopCalculationParam { get; }
         public ICommand UpdateSelectParam { get; }
+
+        public ICommand RefrashTitle { get; }
 
         public MainWindowViewModel() {
             LoadErrorDistribuions();
@@ -160,8 +168,46 @@ namespace RegressionAnalysisApplication
 
             UpdateSelectParam = new RelayCommand<int>(SelectParamFunction);
 
+            RefrashTitle = new RelayCommand(RefrashTitleFunction);
+
             if (File.Exists("config.ini"))
                 Config = (new ConfigurationBuilder()).SetBasePath(Directory.GetCurrentDirectory()).AddIniFile("config.ini").Build();
+        }
+
+        private void RefrashTitleFunction() {
+            
+            if (SelectDistribution is not null && SelectEvolution is not null)
+            {
+                var sb = new StringBuilder();
+                if (CurrentTabIndex < 0 || CurrentTabIndex > 1) return;
+                switch (CurrentTabIndex)
+                {
+                    case 0:
+                        sb.Append("SRE ");
+                        break;
+                    case 1:
+                        sb.Append("P{k} ");
+                        break;
+                    default:
+                        break;
+                }
+                sb.Append(SelectEvolution.ParameterEstimator.Name);
+                sb.Append(' ');
+                sb.Append(SelectDistribution.RandomDistribution.Name);
+                sb.Append(" [");
+                sb.Append($"{(int) SelectDistribution.Parameters[0].Value}");
+                for (int i = 1; i < SelectDistribution.RandomDistribution.CountParametrsDistribution; i++)
+                {
+                    sb.Append($", {(int) SelectDistribution.Parameters[i].Value}");
+                }
+                sb.Append("] ");
+                sb.Append($"n{CountObservations} N{CountIteration}");
+                if (RoundedCheck) {
+                    sb.Append($" R{RoundedValue}");
+                }
+                FileTitle = sb.ToString();
+            }
+            return;
         }
 
         private void SelectParamFunction(int newCount) {
@@ -189,6 +235,10 @@ namespace RegressionAnalysisApplication
             string name = "document";
             if (SelectDistribution is not null && SelectEvolution is not null)
             {
+                if (RoundedCheck) {
+                    sb.Append(RoundedValue);
+                    sb.Append('_');
+                }
                 sb.Append(SelectEvolution.ParameterEstimator.Name);
                 sb.Append('_');
                 sb.Append(SelectDistribution.RandomDistribution.Name);
@@ -243,8 +293,14 @@ namespace RegressionAnalysisApplication
             {
                 est.Config = MMPConfigLoader.Load(SelectDistribution.Type);
             }
+            if (evolution is MNKEstimator) {
+                if (SelectCriteria == 1) {
+                    ShowMessage.Execute($"Ошибка: LR-test может применятся только для ММП");
+                    return;
+                }
+            }
             if (SelectRegression is null) {
-                ShowMessage.Execute("Ошибка не выбрана моедль регрессии");
+                ShowMessage.Execute("Ошибка: не выбрана модель регрессии");
                 return;
             }
             var model = SelectRegression.GetModel();
@@ -293,6 +349,8 @@ namespace RegressionAnalysisApplication
                         factorBound = SelectRegression.ConvertBounds();
                     }
 
+
+
                     var result = await Task.Run(() => RegressionEvaluator.Fit
                     (
                         model: model,
@@ -301,12 +359,13 @@ namespace RegressionAnalysisApplication
                         countObservations: CountObservations,
                         errorDist: SelectDistribution.RandomDistribution,
                         paramsDist: SelectDistribution.ConvertParamToVector(),
-                        debug: false,
                         parallel: ParallelCheck,
                         isRound: RoundedCheck,
                         roundDecimals: RoundedValue,
                         dimension: factorBound,
                         progress: progress,
+                        typeCriteria: (Criteria) SelectCriteria,
+                        seed: InitValGenCheck ? InitValGen : null,
                         token: _cancellationTokenSource.Token
                     ), _cancellationTokenSource.Token);
                     result.Statistics.SaveToDAT(path: SavePath, title: FileTitle);
@@ -321,6 +380,7 @@ namespace RegressionAnalysisApplication
                 catch (Exception ex)
                 {
                     TextProgress = "Ошибка";
+                    ShowMessageBox($"Ошибка: {ex.Message}");
                 }
                 finally
                 {
@@ -385,12 +445,13 @@ namespace RegressionAnalysisApplication
                         countObservations: CountObservations,
                         errorDist: SelectDistribution.RandomDistribution,
                         paramsDist: SelectDistribution.ConvertParamToVector(),
-                        debug: false,
                         parallel: ParallelCheck,
                         isRound: RoundedCheck,
                         roundDecimals: RoundedValue,
                         dimension: factorBound,
                         progress: progress,
+                        typeCriteria: (Criteria) SelectCriteria,
+                        seed: InitValGenCheck ? InitValGen : null,
                         token: _cancellationTokenSource.Token,
                         planX: planX,
                         planP: weights
@@ -468,12 +529,13 @@ namespace RegressionAnalysisApplication
                         countObservations: CountObservations,
                         errorDist: SelectDistribution.RandomDistribution,
                         paramsDist: SelectDistribution.ConvertParamToVector(),
-                        debug: false,
                         parallel: ParallelCheck,
                         isRound: RoundedCheck,
                         roundDecimals: RoundedValue,
                         dimension: factorBound,
                         progress: progress,
+                        typeCriteria: (Criteria) SelectCriteria,
+                        seed: InitValGenCheck ? InitValGen : null,
                         token: _cancellationTokenSource.Token,
                         observations: observation
                     ), _cancellationTokenSource.Token);
@@ -604,22 +666,22 @@ namespace RegressionAnalysisApplication
                         numberParametr: [.. selectedparam],
                         errorDist: SelectDistribution.RandomDistribution,
                         paramsDist: SelectDistribution.ConvertParamToVector(),
-                        debug: false,
                         parallel: ParallelCheck,
                         isRound: RoundedCheck,
                         roundDecimals: RoundedValue,
                         dimension: factorBound,
                         progress: progress,
+                        seed: InitValGenCheck ? InitValGen : null,
                         token: _cancellationTokenSource.Token
                     ), _cancellationTokenSource.Token);
-                    if (result.Statistics.Shape.Item1 > 1) {
-                        for (int i = 0; i < result.Statistics.Shape.Item1; i++) {
-                            var item = Vectors.GetRow(result.Statistics, i);
-                            item.SaveToDAT(path: SavePath.Replace(".dat", $"_{i}.dat"), FileTitleParam + $"Параметр {selectedparam[i]}");
+                    for (int i = 0; i < result.Statistics.Shape.Item1; i++) {
+                        var item = Vectors.GetRow(result.Statistics, i);
+                        var title = FileTitle;
+                        if (FileTitle.Contains("{k}")) {
+                            title = title.Replace("{k}", $"{i}");
                         }
+                        item.SaveToDAT(path: SavePath.Replace(".dat", $"_{i}.dat"), title);
                     }
-                    else
-                        result.Statistics.SaveToDAT(path: SavePath, title: FileTitle);
 
                     TextProgressParam = "Вычисление завершины!";
                 }
@@ -696,27 +758,27 @@ namespace RegressionAnalysisApplication
                         numberParametr: [.. selectedparam],
                         errorDist: SelectDistribution.RandomDistribution,
                         paramsDist: SelectDistribution.ConvertParamToVector(),
-                        debug: false,
                         parallel: ParallelCheck,
                         isRound: RoundedCheck,
                         roundDecimals: RoundedValue,
                         dimension: factorBound,
                         progress: progress,
+                        seed: InitValGenCheck ? InitValGen : null,
                         token: _cancellationTokenSource.Token,
                         planX: planX,
                         planP: weights
                     ), _cancellationTokenSource.Token);
-                    if (result.Statistics.Shape.Item1 > 1)
+                    
+                    for (int i = 0; i < result.Statistics.Shape.Item1; i++)
                     {
-                        for (int i = 0; i < result.Statistics.Shape.Item1; i++)
+                        var item = Vectors.GetRow(result.Statistics, i);
+                        var title = FileTitle;
+                        if (FileTitle.Contains("{k}"))
                         {
-                            var item = Vectors.GetRow(result.Statistics, i);
-                            item.SaveToDAT(path: SavePath.Replace(".dat", $"_{i}.dat"), FileTitleParam + $"Параметр {selectedparam[i]}");
+                            title = title.Replace("{k}", $"{i}");
                         }
+                        item.SaveToDAT(path: SavePath.Replace(".dat", $"_{i}.dat"), title);
                     }
-                    else
-                        result.Statistics.SaveToDAT(path: SavePath, title: FileTitle);
-
                     TextProgressParam = "Вычисление завершины!";
                 }
                 catch (OperationCanceledException)
@@ -790,26 +852,26 @@ namespace RegressionAnalysisApplication
                         numberParametr: [.. selectedparam],
                         errorDist: SelectDistribution.RandomDistribution,
                         paramsDist: SelectDistribution.ConvertParamToVector(),
-                        debug: false,
                         parallel: ParallelCheck,
                         isRound: RoundedCheck,
                         roundDecimals: RoundedValue,
                         dimension: factorBound,
                         progress: progress,
+                        seed: InitValGenCheck ? InitValGen : null,
                         token: _cancellationTokenSource.Token,
                         observations: observation
                     ), _cancellationTokenSource.Token);
-                    if (result.Statistics.Shape.Item1 > 1)
+                    
+                    for (int i = 0; i < result.Statistics.Shape.Item1; i++)
                     {
-                        for (int i = 0; i < result.Statistics.Shape.Item1; i++)
+                        var item = Vectors.GetRow(result.Statistics, i);
+                        var title = FileTitle;
+                        if (FileTitle.Contains("{k}"))
                         {
-                            var item = Vectors.GetRow(result.Statistics, i);
-                            item.SaveToDAT(path: SavePath.Replace(".dat", $"_{i}.dat"), FileTitleParam + $"Параметр {selectedparam[i]}");
+                            title = title.Replace("{k}", $"{i}");
                         }
+                        item.SaveToDAT(path: SavePath.Replace(".dat", $"_{i}.dat"), title);
                     }
-                    else
-                        result.Statistics.SaveToDAT(path: SavePath, title: FileTitle);
-
                     TextProgressParam = "Вычисление завершины!";
                 }
                 catch (OperationCanceledException)

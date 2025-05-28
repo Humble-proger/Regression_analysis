@@ -1,6 +1,4 @@
-﻿using Regression_analysis;
-
-namespace RegressionAnalysisLibrary
+﻿namespace RegressionAnalysisLibrary
 {
     public delegate double LogLikelihoodFunction(IModel model, Vectors @params, Vectors[] parametrs);
     public delegate Vectors LogLikelihoodGradient(IModel model, Vectors @params, Vectors[] parametrs);
@@ -14,18 +12,6 @@ namespace RegressionAnalysisLibrary
         LogLikelihoodFunction LogLikelihood { get; }
         LogLikelihoodGradient? Gradient { get; }
         LogLikelihoodGessian? Gessian { get; }
-        public static Vectors ComputeResiduals(in IModel model, in Vectors theta, in Vectors[] @params, double loc = 0.0)
-        {
-            var x = @params[0];
-            var y = @params[1];
-            var temp_theta = theta.T();
-
-            var residuals = Vectors.InitVectors(y.Shape);
-            for (var i = 0; i < y.Size; i++)
-                residuals[i] = y[i] - (model.VectorFunc(Vectors.GetRow(x, i)) & temp_theta)[0] - loc;
-            return residuals;
-        }
-        Vectors? UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params);
     }
 
     public class MMPConfiguration
@@ -105,15 +91,6 @@ namespace RegressionAnalysisLibrary
             }
             return -2 * residuals;
         };
-
-        public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params)
-        {
-            var residuals = IMMPFunction.ComputeResiduals(model, theta, @params);
-            residuals.Sort();
-            var loc = Vectors.Median(residuals, sort: true);
-            var scale = (Vectors.Percentile(residuals, 0.75, true) - Vectors.Percentile(residuals, 0.25, true)) / 2;
-            return new Vectors([(double) loc, scale]);
-        }
     }
 
     public class ExponentialMMPDistribution : IMMPFunction
@@ -158,14 +135,6 @@ namespace RegressionAnalysisLibrary
         };
 
         public LogLikelihoodGessian? Gessian => null;
-
-        public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params)
-        {
-            var residuals = IMMPFunction.ComputeResiduals(model, theta, @params);
-            var loc = Vectors.Min(residuals);
-            var scale = Vectors.Mean(residuals - loc);
-            return new Vectors([loc, scale]);
-        }
     }
 
     public class LaplaceMMPDistribution : IMMPFunction
@@ -209,17 +178,6 @@ namespace RegressionAnalysisLibrary
         };
 
         public LogLikelihoodGessian? Gessian => null;
-
-        public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params)
-        {
-            var residuals = IMMPFunction.ComputeResiduals(model, theta, @params);
-            var loc = Vectors.Median(residuals);
-            var scale = 0.0;
-            for (var i = 0; i < residuals.Size; i++)
-                scale = double.Abs(residuals[i] - loc);
-            scale /= residuals.Size;
-            return new Vectors([loc, scale]);
-        }
     }
 
     public class GammaMMPDistribution : IMMPFunction
@@ -286,20 +244,6 @@ namespace RegressionAnalysisLibrary
             }
             return (paramsDist[2] - 1) * residuals;
         };
-
-        public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params)
-        {
-            var residians = IMMPFunction.ComputeResiduals(model, theta, @params);
-            var loc = Vectors.Min(residians);
-            residians = IMMPFunction.ComputeResiduals(model, theta, @params, loc);
-            var mean = residians.Mean();
-            var variance = @params[1].Size < 30 ? residians.VarianceNoOffset(mean: mean) : residians.Variance(mean: mean);
-            var result = Vectors.InitVectors((1, 3));
-            result[0] = loc;
-            result[1] = mean / variance;
-            result[2] = mean * mean / variance;
-            return result;
-        }
     }
 
     public class UniformMMPDistribution : IMMPFunction
@@ -332,7 +276,6 @@ namespace RegressionAnalysisLibrary
         public LogLikelihoodGradient? Gradient => null;
 
         public LogLikelihoodGessian? Gessian => null;
-        public Vectors? UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params) => null;
     }
     public class NormalMMPDistribution : IMMPFunction
     {
@@ -387,13 +330,5 @@ namespace RegressionAnalysisLibrary
             var matrixX = model.CreateMatrixX(x);
             return -(matrixX.T() & matrixX) / double.Pow(paramsDist[1], 2);
         };
-
-        public Vectors UpdateParametrs(in IModel model, in Vectors theta, in Vectors[] @params)
-        {
-            var residuals = IMMPFunction.ComputeResiduals(model, theta, @params);
-            var loc = Vectors.Mean(residuals);
-            var scale = residuals.Size < 30 ? Vectors.VarianceNoOffset(residuals - loc) : Vectors.Variance(residuals - loc);
-            return new Vectors([loc, double.Sqrt(scale)]);
-        }
     }
 }

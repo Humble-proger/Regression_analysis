@@ -1,34 +1,8 @@
-﻿
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text;
 
-namespace Regression_analysis
+namespace RegressionAnalysisLibrary
 {
-    public interface IModel
-    {
-        public bool FreeMember {get; set;}
-        public int CountFacts { get; set;}
-        public int CountRegressor {get; set;}
-        public Vectors TrueTheta { get; set; }
-        public List<IAdditionalRegressor> RelatedFacts { get; set; }
-        public List<int> NotActiveFacts { get; set; }
-
-        public Vectors VectorFunc(Vectors x);
-        public double True_value(Vectors x);
-        public Vectors CreateMatrixX(Vectors x);
-
-        public void Update(int count_facts, IEnumerable<IAdditionalRegressor> related_facts, IEnumerable<int> nonActiveFacts, Vectors truetheta, bool free_member = false);
-        public List<IAdditionalRegressor> GenerateAdditionalRegressors(int[] arr, int limit);
-    }
-
-
-    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-    public class RegressionAttribute(string name) : Attribute
-    {
-        public string Name { get; } = name;
-    }
-
-
     public class RegressionFactory
     {
         private readonly Dictionary<string, IModel> _regressions;
@@ -78,7 +52,32 @@ namespace Regression_analysis
         }
     }
 
-    public interface IAdditionalRegressor {
+    public interface IModel
+    {
+        public bool FreeMember { get; set; }
+        public int CountFacts { get; set; }
+        public int CountRegressor { get; set; }
+        public Vectors TrueTheta { get; set; }
+        public List<IAdditionalRegressor> AdditionalFacts { get; set; }
+        public List<int> NotActiveFacts { get; set; }
+
+        public Vectors VectorFunc(Vectors x);
+        public double True_value(Vectors x);
+        public Vectors CreateMatrixX(Vectors x);
+
+        public void Update(int count_facts, IEnumerable<IAdditionalRegressor> additional_facts, IEnumerable<int> nonActiveFacts, Vectors truetheta, bool free_member = false);
+        public List<IAdditionalRegressor> GenerateAdditionalRegressors(int[] arr, int limit);
+    }
+
+
+    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+    public class RegressionAttribute(string name) : Attribute
+    {
+        public string Name { get; } = name;
+    }
+
+    public interface IAdditionalRegressor
+    {
         public double Calc(Vectors valuesX);
         public double Compare();
     }
@@ -88,57 +87,60 @@ namespace Regression_analysis
     {
         public List<int> ListRelatedFacts { get; set; }
 
-        public RelatedFact(IEnumerable<int> list) {
+        public RelatedFact(IEnumerable<int> list)
+        {
             ListRelatedFacts = new List<int>(list);
             ListRelatedFacts = [.. ListRelatedFacts.Order()];
         }
 
         public double Calc(Vectors valuesX)
         {
-            double res = 1.0;
+            var res = 1.0;
             try
             {
-                foreach (int i in ListRelatedFacts)
-                {
+                foreach (var i in ListRelatedFacts)
                     res *= valuesX[i];
-                }
             }
-            catch (Exception ex) {
+            catch (Exception ex)
+            {
                 throw new Exception($"Ошибка при подсчёте взаимосвязных факторов - {ex}");
             }
             return res;
         }
 
-        public double Compare() {
+        public double Compare()
+        {
             return ListRelatedFacts.Count;
         }
 
-        public override string ToString() {
-            if (ListRelatedFacts.Count > 0) {
+        public override string ToString()
+        {
+            if (ListRelatedFacts.Count > 0)
+            {
                 var b = new StringBuilder($"Фактор {ListRelatedFacts[0]}");
-                for (int i = 1; i < ListRelatedFacts.Count; i++) {
+                for (var i = 1; i < ListRelatedFacts.Count; i++)
                     b.Append($" x Фактор {ListRelatedFacts[i]}");
-                }
                 return b.ToString();
             }
             return "";
         }
     }
 
-    [RegressionAttribute("Линейная регрессия")]
+    [Regression("Линейная регрессия")]
     public class LiniarModel : IModel
     {
-        public bool FreeMember { get; set; }  = false;
+        public bool FreeMember { get; set; } = false;
         public int CountFacts { get; set; } = 1;
         public int CountRegressor { get; set; } = 1;
         public Vectors TrueTheta { get; set; }
-        public List<IAdditionalRegressor> RelatedFacts { get; set; }
+        public List<IAdditionalRegressor> AdditionalFacts { get; set; }
 
         public List<int> NotActiveFacts { get; set; }
 
-        public LiniarModel() {
+        public LiniarModel()
+        {
             TrueTheta = new Vectors([[]]);
-            RelatedFacts = [];
+            AdditionalFacts = [];
             NotActiveFacts = [];
         }
 
@@ -148,51 +150,20 @@ namespace Regression_analysis
             FreeMember = free_member;
             // Фильтр для связанных фактов
 
-            RelatedFacts = new List<IAdditionalRegressor>(related_facts);
-            RelatedFacts = [.. RelatedFacts.OrderBy(x => x.Compare())];
-
-            NotActiveFacts = new List<int>(nonActiveFacts);
-            if (NotActiveFacts.Count > CountFacts)
-                throw new ArgumentException("List неактивных параметров передан не верно");
-            foreach (var elem in NotActiveFacts) {
-                if (elem < 0 || elem >= CountFacts)
-                    throw new ArgumentException("List неактивных параметров передан не верно");
-            }
-            // Считаем количество регрессор
-            CountRegressor = count_facts - NotActiveFacts.Count;
-            if (free_member)
-                CountRegressor += 1;
-            CountRegressor += RelatedFacts.Count;
-            if (truetheta.Shape.Item2 == 1)
-                truetheta = truetheta.T();
-            else if (truetheta.Shape.Item1 != 1)
-                throw new Exception("Vector truetheta cannot be a matrix.");
-            if (truetheta.Size != CountRegressor)
-                throw new Exception("Incorrect input of true theta values.");
-            TrueTheta = truetheta;
-        }
-
-        public void Update(int count_facts, IEnumerable<IAdditionalRegressor> related_facts, IEnumerable<int> nonActiveFacts, Vectors truetheta, bool free_member = false) {
-            CountFacts = count_facts;
-            FreeMember = free_member;
-            // Фильтр для связанных фактов
-
-            RelatedFacts = new List<IAdditionalRegressor>(related_facts);
-            RelatedFacts = [.. RelatedFacts.OrderBy(x => x.Compare())];
+            AdditionalFacts = new List<IAdditionalRegressor>(related_facts);
+            AdditionalFacts = [.. AdditionalFacts.OrderBy(x => x.Compare())];
 
             NotActiveFacts = new List<int>(nonActiveFacts);
             if (NotActiveFacts.Count > CountFacts)
                 throw new ArgumentException("List неактивных параметров передан не верно");
             foreach (var elem in NotActiveFacts)
-            {
                 if (elem < 0 || elem >= CountFacts)
                     throw new ArgumentException("List неактивных параметров передан не верно");
-            }
             // Считаем количество регрессор
             CountRegressor = count_facts - NotActiveFacts.Count;
             if (free_member)
                 CountRegressor += 1;
-            CountRegressor += RelatedFacts.Count;
+            CountRegressor += AdditionalFacts.Count;
             if (truetheta.Shape.Item2 == 1)
                 truetheta = truetheta.T();
             else if (truetheta.Shape.Item1 != 1)
@@ -201,51 +172,82 @@ namespace Regression_analysis
                 throw new Exception("Incorrect input of true theta values.");
             TrueTheta = truetheta;
         }
-        public Vectors VectorFunc(Vectors x) {
+
+        public void Update(int count_facts, IEnumerable<IAdditionalRegressor> related_facts, IEnumerable<int> nonActiveFacts, Vectors truetheta, bool free_member = false)
+        {
+            CountFacts = count_facts;
+            FreeMember = free_member;
+            // Фильтр для связанных фактов
+
+            AdditionalFacts = new List<IAdditionalRegressor>(related_facts);
+            AdditionalFacts = [.. AdditionalFacts.OrderBy(x => x.Compare())];
+
+            NotActiveFacts = new List<int>(nonActiveFacts);
+            if (NotActiveFacts.Count > CountFacts)
+                throw new ArgumentException("List неактивных параметров передан не верно");
+            foreach (var elem in NotActiveFacts)
+                if (elem < 0 || elem >= CountFacts)
+                    throw new ArgumentException("List неактивных параметров передан не верно");
+            // Считаем количество регрессор
+            CountRegressor = count_facts - NotActiveFacts.Count;
+            if (free_member)
+                CountRegressor += 1;
+            CountRegressor += AdditionalFacts.Count;
+            if (truetheta.Shape.Item2 == 1)
+                truetheta = truetheta.T();
+            else if (truetheta.Shape.Item1 != 1)
+                throw new Exception("Vector truetheta cannot be a matrix.");
+            if (truetheta.Size != CountRegressor)
+                throw new Exception("Incorrect input of true theta values.");
+            TrueTheta = truetheta;
+        }
+        public Vectors VectorFunc(Vectors x)
+        {
             if (x.Shape.Item2 == 1)
                 x = x.T();
             else if (x.Shape.Item1 != 1)
                 throw new Exception("Vector x cannot be a matrix.");
             if (x.Size != CountFacts) throw new Exception($"The size of the vector x does not match CountFacts. Number of facts: {CountFacts}. Size of x: {x.Size}.");
-            double[] result = new double[CountRegressor];
-            int index = 0;
+            var result = new double[CountRegressor];
+            var index = 0;
             if (FreeMember)
                 result[index++] = 1;
-            for (int i = 0; i < CountFacts; i++)
+            for (var i = 0; i < CountFacts; i++)
                 if (!NotActiveFacts.Contains(i))
                     result[index++] = x[0, i];
-            for (int i = 0; i < RelatedFacts.Count; i++, index++)
-                result[index] = RelatedFacts[i].Calc(x);
+            for (var i = 0; i < AdditionalFacts.Count; i++, index++)
+                result[index] = AdditionalFacts[i].Calc(x);
             return new Vectors(result);
         }
-        public double True_value(Vectors x) {
+        public double True_value(Vectors x)
+        {
             if (x.Shape.Item2 == 1)
                 x = x.T();
             else if (x.Shape.Item1 != 1)
                 throw new Exception("Vector x cannot be a matrix.");
             if (x.Size != CountFacts) throw new Exception($"The size of the vector x does not match CountFacts. Number of facts: {CountFacts}. Size of x: {x.Size}.");
-            int index = 0;
+            var index = 0;
             double result = 0;
             if (FreeMember)
                 result += TrueTheta[0, index++];
-            for (int i = 0; i < CountFacts; i++)
+            for (var i = 0; i < CountFacts; i++)
                 if (!NotActiveFacts.Contains(i))
                     result += x[0, i] * TrueTheta[0, index++];
-            for (int i = 0; i < RelatedFacts.Count; i++, index++)
-                result += RelatedFacts[i].Calc(x) * TrueTheta[0, index];
+            for (var i = 0; i < AdditionalFacts.Count; i++, index++)
+                result += AdditionalFacts[i].Calc(x) * TrueTheta[0, index];
             return result;
         }
-        public Vectors CreateMatrixX(Vectors x) {
+        public Vectors CreateMatrixX(Vectors x)
+        {
             if (x.Shape.Item2 != CountFacts)
                 throw new Exception($"Incorrect matrix size x.The matrix row size is {x.Shape.Item2}, but should be {CountFacts}");
-            Vectors result = Vectors.InitVectors((x.Shape.Item1, CountRegressor));
-            for (int i = 0; i < x.Shape.Item1; i++) {
+            var result = Vectors.InitVectors((x.Shape.Item1, CountRegressor));
+            for (var i = 0; i < x.Shape.Item1; i++)
                 result.SetRow(VectorFunc(Vectors.GetRow(x, i)), i);
-            }
             return result;
         }
 
-        public List<IAdditionalRegressor> GenerateAdditionalRegressors(int[] arr, int limit) 
+        public List<IAdditionalRegressor> GenerateAdditionalRegressors(int[] arr, int limit)
         {
             if (arr.Length <= 1)
                 return [];
@@ -253,7 +255,7 @@ namespace Regression_analysis
             var result = new List<IAdditionalRegressor>();
 
             // Начинаем с комбинаций максимальной длины (размер массива), затем уменьшаем
-            for (int r = arr.Length; r >= 2; r--)
+            for (var r = arr.Length; r >= 2; r--)
             {
                 // Генерируем все комбинации длины r
                 var combinations = GetCombinations(arr, r);
@@ -271,7 +273,7 @@ namespace Regression_analysis
         static List<RelatedFact> GetCombinations(int[] arr, int k)
         {
             var result = new List<RelatedFact>();
-            int n = arr.Length;
+            var n = arr.Length;
 
             // Рекурсивный метод для генерации комбинаций
             void Generate(int start, List<int> current)
@@ -282,7 +284,7 @@ namespace Regression_analysis
                     return;
                 }
 
-                for (int i = start; i < n; i++)
+                for (var i = start; i < n; i++)
                 {
                     current.Add(arr[i]);
                     Generate(i + 1, current);

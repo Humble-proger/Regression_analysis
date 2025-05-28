@@ -1,28 +1,7 @@
 ﻿using System.Reflection;
 
-using Regression_analysis;
-
 namespace RegressionAnalysisLibrary
 {
-    public interface IParameterEstimator
-    {
-        string Name { get; }
-        public abstract Vectors EstimateParameters(IModel model, Vectors[] otherParameters);
-    }
-
-
-    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
-    public class EvolutionAttribute : Attribute
-    {
-        public string Name { get; }
-
-        public EvolutionAttribute(string name)
-        {
-            Name = name;
-        }
-    }
-
-
     public class EvolutionFactory
     {
         private readonly Dictionary<string, IParameterEstimator> _evolutions;
@@ -68,6 +47,23 @@ namespace RegressionAnalysisLibrary
         public IEnumerable<(string Name, IParameterEstimator Instance)> GetAllEvolutions()
         {
             return _evolutions.Select(kv => (kv.Key, kv.Value));
+        }
+    }
+    public interface IParameterEstimator
+    {
+        string Name { get; }
+        public abstract Vectors EstimateParameters(IModel model, Vectors[] otherParameters);
+    }
+
+
+    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+    public class EvolutionAttribute : Attribute
+    {
+        public string Name { get; }
+
+        public EvolutionAttribute(string name)
+        {
+            Name = name;
         }
     }
 
@@ -129,7 +125,7 @@ namespace RegressionAnalysisLibrary
                 try
                 {
                     var tMatrixX = matrixX.T();
-                    estimatedTheta = Vectors.Inv(tMatrixX & matrixX) & tMatrixX & y.T();
+                    estimatedTheta = (Vectors.Inv(tMatrixX & matrixX) & tMatrixX & y.T()).T();
                 }
                 catch
                 {
@@ -137,8 +133,7 @@ namespace RegressionAnalysisLibrary
                 }
                 return estimatedTheta;
             }
-            else
-                if (Config.MNKEstuminate)
+            else if (Config.MNKEstuminate)
             {
                 Vectors initParams;
                 try
@@ -154,7 +149,6 @@ namespace RegressionAnalysisLibrary
                 {
                     throw new Exception("Не правильные данные");
                 }
-
                 return Config.IsMultiIterationOptimisation
                     ? Config.Oprimizator.OptimisateRandomInit(
                         Config.Functions.LogLikelihood,
@@ -174,8 +168,7 @@ namespace RegressionAnalysisLibrary
                         otherParameters,
                         Config.Tolerance,
                         maxIter: Config.MaxIteration
-                        ).MinPoint
-                    ;
+                        ).MinPoint;
             }
             else
                 return Config.IsMultiIterationOptimisation
@@ -280,10 +273,10 @@ namespace RegressionAnalysisLibrary
                 Functions = new CauchyMMPDistribution(),
                 Oprimizator = new DFPOptimizator(),
                 Mean = CauchyDistribution.Mean,
-                IsMultiIterationOptimisation = ismultiiteration,
+                IsMultiIterationOptimisation = true,
                 MaxAttempts = maxattepts,
                 Tolerance = tol,
-                MaxIteration = maxiteration,
+                MaxIteration = 1000,
                 Seed = seed,
                 MNKEstuminate = false
             };
@@ -357,286 +350,6 @@ namespace RegressionAnalysisLibrary
                 default:
                     throw new ArgumentException("Нет такого распределения");
             }
-        }
-    }
-
-    public static class NumericGradient
-    {
-        public static Vectors ComputeGradient(LogLikelihoodFunction f, Vectors x, IModel model, Vectors[] parameters, double h = 1e-5)
-        {
-            var n = x.Size;
-            var gradient = Vectors.InitVectors((1, n));
-            var xPh = x.Clone();
-            var xMh = x.Clone();
-
-            for (var i = 0; i < n; i++)
-            {
-                // Сохраняем исходное значение
-                var originalValue = x[i];
-
-                // Вычисляем f(x + h)
-                xPh[i] = originalValue + h;
-                var fPh = f(model, xPh, parameters);
-
-                // Вычисляем f(x - h)
-                xMh[i] = originalValue - h;
-                var fMh = f(model, xMh, parameters);
-
-                // Центральная разностная производная
-                gradient[i] = (fPh - fMh) / (2 * h);
-
-                // Восстанавливаем значение
-                xPh[i] = originalValue;
-                xMh[i] = originalValue;
-            }
-
-            return gradient;
-        }
-    }
-
-
-    public static class Test
-    {
-        public static void Main(string[] args)
-        {
-
-            var h = "H0";
-            var n = 1000;
-            var thetaH0 = new Vectors([5, 2, 3, 7]);
-            var valueH1 = 1.0 / (n * double.Log(n) * double.Log(n));
-            var thetaH1 = new Vectors([5, valueH1, valueH1, valueH1]);
-            var paramDistribution = new Vectors([0, 30, 0.7]);
-            var numparam = 1;
-
-            var e_teml = GammaDistribution.Generate((1, 100000), paramDistribution, new Random());
-            e_teml.SaveToDAT($"D:/Program/Budancev/ОР/Samples/Gamma07.dat", "Gamma (0, 30, 0.7)");
-            /*
-            
-            Vectors planX = new Vectors([[-1, -1, -1],
-                                        [1, -1, -1],
-                                        [-1, 1, -1],
-                                        [1, 1, -1],
-                                        [-1, -1, 1],
-                                        [1, -1, 1],
-                                        [-1, 1, 1],
-                                        [1, 1, 1]]);
-            Vectors planP = Vectors.Ones((1, 8)) / 8;
-            planX = planX * 1e+3;
-
-            var model = new LiniarModel
-                        (
-                            3,
-                            [],
-                            [],
-                            thetaH0,
-                            true
-                        );
-
-            var rand = new Random();
-            var error = new GammaDistribution();
-            var e = error.Generate((1, n), paramDistribution);
-            var X = LinespaceRandom.Generate((n, model.CountFacts), [(-1, 1)], rand);
-            var y = (model.CreateMatrixX(X) & model.TrueTheta.T()).T() + e;
-            var func = new GammaMMKDistribution();
-
-            //var x0 = new Vectors([1, 2, 5, 9]);
-
-            //var opt3 = new CGOptimizator();
-            var opt1 = new NelderMeadOptimizator();
-            //var opt2 = new DFPOptimizator();
-
-            var MNK = new MNKEstimator();
-            var calc_theta = MNK.EstimateParameters(model, [paramDistribution, X, y]);
-
-            var clock = new Stopwatch();
-            clock.Start();
-            var result0 = opt1.OptimisateRandomInit(
-                    func.LogLikelihood,
-                    func.Gradient,
-                    model,
-                    [paramDistribution, X, y],
-                    1e-7,
-                    x0: calc_theta,
-                    maxIter: 1000
-                );
-            
-            clock.Stop();
-            Console.WriteLine($"Первое время: {clock.ElapsedMilliseconds}");
-            var result1 = opt1.Optimisate(
-                func.LogLikelihood,
-                    func.Gradient,
-                    model,
-                    calc_theta,
-                    [paramDistribution, X, y],
-                    1e-7,
-                    maxIter: 1000
-                );
-            */
-            /*
-            clock.Restart();
-            var result1 = opt2.OptimisateRandomInit(
-                    func.LogLikelihood,
-                    func.Gradient,
-                    model,
-                    [paramDistribution, X, y],
-                    1e-7,
-                    x0: calc_theta
-                );
-            clock.Stop();
-            Console.WriteLine($"Второе время: {clock.ElapsedMilliseconds}");
-            
-            clock.Restart();
-            var result2 = opt3.Optimisate(
-                    func.LogLikelihood,
-                    func.Gradient,
-                    model,
-                    calc_theta,
-                    [paramDistribution, X, y],
-                    1e-7
-                );
-            clock.Stop();
-            Console.WriteLine($"Третье время: {clock.ElapsedMilliseconds}");
-            */
-            //Console.WriteLine(result0 + "\n");
-            //Console.WriteLine(result1 + "\n");
-            //Console.WriteLine(result2 + "\n");
-            //Console.WriteLine($"Значение функции для первого оптимизатора: {func.LogLikelihood(model, result0.MinPoint, [paramDistribution, X, y])}");
-            //Console.WriteLine($"Значение функции для второго оптимизатора: {func.LogLikelihood(model, result1.MinPoint, [paramDistribution, X, y])}");
-            //Console.WriteLine($"Значение функции для второго оптимизатора: {func.LogLikelihood(model, result2.MinPoint, [paramDistribution, X, y])}");
-
-            /*
-            var rand = new Random();
-            var opt1 = new CGOptimizator();
-            var opt2 = new NelderMeadOptimizator();
-            
-            var func = new CauchyMMKDistribution();
-            var X = LinespaceRandom.Generate((n, model.CountFacts), [(-10, 10)], rand);
-            //var X = RegressionEvaluator.GenerateXFromPlan(planX, planP, n, rand);
-            var error = new CauchyDistribution();
-            var e = error.Generate((1, n), paramDistribution);
-
-            var y = (model.CreateMatrixX(X) & model.TrueTheta.T()).T() + e;
-
-            //var res = ComparisonMethods.Compare(
-            //        model,
-            //        new MNKEstimator(),
-            //        new MMKEstimator(MMKConfigLoader.Laplace(ismultiiteration: false, maxiteration: 5000)),
-            //        [paramDistribution, X, y]
-
-            //    );
-            var MNK = new MNKEstimator();
-            var calc_theta = MNK.EstimateParameters(model, [paramDistribution, X, y]);
-            var clock = new Stopwatch();
-            clock.Start();
-
-            var res = opt1.Optimisate(
-                func.LogLikelihood,
-                func.Gradient,
-                model,
-                calc_theta,
-                //Vectors.Inv(func.Gessian(model, calc_theta, [paramDistribution, X, y])),
-                [paramDistribution, X, y],
-                eps: 1e-7
-            );
-            clock.Stop();
-
-            Console.WriteLine((res, clock.ElapsedMilliseconds));
-
-            Console.WriteLine(calc_theta);
-            clock.Restart();
-            res = opt2.Optimisate(
-                func.LogLikelihood,
-                func.Gradient,
-                model,
-                calc_theta,
-                [paramDistribution, X, y],
-                1e-7
-            );
-            clock.Stop();
-            Console.WriteLine((res, clock.ElapsedMilliseconds));
-            */
-            //string json = JsonSerializer.Serialize(res, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true});
-            //File.WriteAllText($"/home/zodiac/Program/ОР/Samples/CompareMethods_Laplace_{n}.json", json);
-            //Console.WriteLine(json);
-
-            /*
-            Vectors planX = new Vectors([[-1, -1, -1],
-                                        [1, -1, -1],
-                                        [-1, 1, -1],
-                                        [1, 1, -1],
-                                        [-1, -1, 1],
-                                        [1, -1, 1],
-                                        [-1, 1, 1],
-                                        [1, 1, 1]]);
-            Vectors planP = Vectors.Ones((1, 8)) / 8;
-            planX *= 1e+4;
-            int seed = 8745;
-            if (h == "H0")
-            {
-                var clock = new Stopwatch();
-                clock.Start();
-                var statistic = RegressionEvaluator.FitParameters
-                    (
-                        model: new LiniarModel
-                        (
-                            3,
-                            [],
-                            thetaH0,
-                            true
-                        ),
-                        evolution: new MMKEstimator(MMKConfigLoader.Exponential(ismultiiteration: true, maxiteration: 2000)),
-                        //evolution: new MNKEstimator(),
-                        countIteration: 2000,
-                        countObservations: n,
-                        numberParametr: numparam,
-                        errorDist: new ExponentialDistribution(),
-                        paramsDist: paramDistribution,
-                        debug: true,
-                        parallel: true,
-                        isRound: false,
-                        planX: planX,
-                        planP: planP,
-                        roundDecimals: 5
-                    //seed: seed
-                    );
-                clock.Stop();
-                Console.WriteLine();
-                Console.WriteLine(clock.ElapsedMilliseconds);
-                Console.WriteLine("Готово!");
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:/Program/Budancev/ОР/Samples/H0_Parameters_{numparam}_{1e4}_MMPExponential{n}.dat"), title: "H0 " + statistic.ToString());
-                //statistic.Statistics.SaveToDAT(FormattableString.Invariant($"/home/zodiac/Program/ОР/Samples/H0_MMKLaplace{n}.dat"), title: "H0 " + statistic.ToString());
-            }
-            else if (h == "H1") 
-            {
-                var clock = new Stopwatch();
-                clock.Start();
-                var statistic = RegressionEvaluator.Fit
-                    (
-                        model: new LiniarModel
-                        (
-                            3,
-                            [],
-                            thetaH1,
-                            true
-                        ),
-                        evolution: new MMKEstimator(MMKConfigLoader.Laplace()),
-                        countIteration: 2000,
-                        countObservations: n,
-                        
-                        errorDist: new LaplaceDistribution(),
-                        paramsDist: paramDistribution,
-                        debug: true,
-                        parallel: true,
-                        seed: seed
-                    );
-                clock.Stop();
-                Console.WriteLine();
-                Console.WriteLine(clock.ElapsedMilliseconds);
-                Console.WriteLine("Готово!");
-                statistic.Statistics.SaveToDAT(FormattableString.Invariant($"D:\\Program\\Budancev\\ОР\\Samples\\H1_MMKLaplace{n}_lr.dat"), title: "H1 " + statistic.ToString());
-                
-            }
-            */
         }
     }
 }

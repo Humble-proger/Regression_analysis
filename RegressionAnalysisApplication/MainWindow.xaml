@@ -16,7 +16,7 @@
         <local:MainWindowViewModel />
     </Window.DataContext>
     
-    <TabControl>
+    <TabControl SelectedIndex="{Binding CurrentTabIndex, Mode=TwoWay}">
         <TabItem Header="Статистики критериев">
             <ScrollViewer>
                 <StackPanel >
@@ -146,6 +146,11 @@
                                                 <TextBlock Text="Количество вычислений"/>
                                                 <TextBox Text="{Binding CountIteration, Mode=TwoWay}" Margin="5,0,0,0"/>
                                             </StackPanel>
+                                            <CheckBox Margin="0,5" Content="Фиксировать начальное значение ГСЧ" IsChecked="{Binding InitValGenCheck, Mode=TwoWay}"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Начальное значение ГСЧ"/>
+                                                <TextBox Text="{Binding InitValGen, Mode=TwoWay}" Margin="5,0,0,0" Width="30" IsEnabled="{Binding InitValGenCheck}"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </GroupBox>
                                     <GroupBox Header="Параметры" Grid.Column="1">
@@ -234,8 +239,9 @@
                             </Grid.ColumnDefinitions>
                             <GroupBox Header="Критрий" Grid.Column="0">
                                 <StackPanel>
-                                    <ComboBox Height="20" Width="220" HorizontalAlignment="Center" Margin="0, 10" SelectedIndex="0" >
+                                    <ComboBox Height="20" Width="220" HorizontalAlignment="Center" Margin="0, 10" SelectedIndex="{Binding SelectCriteria, Mode=TwoWay}" >
                                         <TextBlock Text="F-test об ограничении параметров"/>
+                                        <TextBlock Text="LR-test об ограничении параметров"/>
                                     </ComboBox>
                                 </StackPanel>
                             </GroupBox>
@@ -284,7 +290,15 @@
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0, 5">
                                     <TextBlock Text="Заголовок:" />
-                                    <TextBox Text="{Binding FileTitle, Mode=TwoWay}" Width="200" Margin="10,0"/>
+                                    <TextBox Text="{Binding FileTitle, Mode=TwoWay}" Width="180" Margin="10,0"/>
+                                    <Button Width="20" Height="20" Command="{Binding RefrashTitle}">
+                                        <Viewbox>
+                                            <Path Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
+                                                    Fill="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                                                    Width="25" 
+                                                    Height="25"/>
+                                        </Viewbox>
+                                    </Button>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0, 5">
                                     <TextBlock Text="Файл:" />
@@ -424,7 +438,12 @@
                                             </ComboBox>
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="Количество вычислений"/>
-                                                <TextBox Text="{Binding CountIteration, Mode=TwoWay}" Margin="5,0,0,0"/>
+                                                <TextBox Text="{Binding CountIteration, Mode=TwoWay}" Margin="5,0,0,0" Width="30"/>
+                                            </StackPanel>
+                                            <CheckBox Margin="0,5" Content="Фиксировать начальное значение ГСЧ" IsChecked="{Binding InitValGenCheck, Mode=TwoWay}"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Начальное значение ГСЧ"/>
+                                                <TextBox Text="{Binding InitValGen, Mode=TwoWay}" Margin="5,0,0,0" Width="30" IsEnabled="{Binding InitValGenCheck}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </GroupBox>
@@ -571,7 +590,15 @@
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0, 5">
                                     <TextBlock Text="Заголовок:" />
-                                    <TextBox Text="{Binding FileTitleParam, Mode=TwoWay}" Width="200" Margin="10,0"/>
+                                    <TextBox Text="{Binding FileTitle, Mode=TwoWay}" Width="180" Margin="10,0"/>
+                                    <Button Width="20" Height="20" Command="{Binding RefrashTitle}">
+                                        <Viewbox>
+                                            <Path Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
+                                                    Fill="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"
+                                                    Width="25" 
+                                                    Height="25"/>
+                                        </Viewbox>
+                                    </Button>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0, 5">
                                     <TextBlock Text="Файл:" />
