@@ -1,11 +1,12 @@
 ﻿namespace RegressionAnalysisLibrary
 {
+    // Делегаты, описывающие сигнатуры функций правдоподобия, её градиента и гессиана
     public delegate double LogLikelihoodFunction(IModel model, Vectors @params, Vectors[] parametrs);
     public delegate Vectors LogLikelihoodGradient(IModel model, Vectors @params, Vectors[] parametrs);
     public delegate Vectors LogLikelihoodGessian(IModel model, Vectors @params, Vectors[] parametrs);
-    public delegate double? Moment(Vectors paramDist);
+    public delegate double? Moment(Vectors paramDist); // Функция для расчета момента распределения (например, математического ожидания)
 
-
+    // Интерфейс, объединяющий функции для метода максимального правдоподобия
     public interface IMMPFunction
     {
         string Name { get; }
@@ -13,25 +14,28 @@
         LogLikelihoodGradient? Gradient { get; }
         LogLikelihoodGessian? Gessian { get; }
     }
-
+    
+    // Конфигурация для метода максимального правдоподобия
     public class MMPConfiguration
     {
 
-        public required IMMPFunction Functions { get; set; }
+        public required IMMPFunction Functions { get; set; } // Набор функций ММП
         public required IOprimizator Oprimizator { get; set; }
-        public required Moment Mean { get; set; }
-        public bool IsMultiIterationOptimisation { get; set; } = true;
+        public required Moment Mean { get; set; } // Среднее значение распределения
+        public bool IsMultiIterationOptimisation { get; set; } = true; // Использовать ли повторные запуски оптимизации
         public int MaxAttempts { get; set; } = 100;
         public double Tolerance { get; set; } = 1e-7;
         public int MaxIteration { get; set; } = 1000;
-        public bool MNKEstuminate { get; set; } = true;
+        public bool MNKEstuminate { get; set; } = true; // Использовать ли МНК как инициализацию
         public int? Seed { get; set; }
     }
 
+    // Распределение Коши
     public class CauchyMMPDistribution : IMMPFunction
     {
         public string Name => "Cauchy";
 
+        // Функция логарифма правдоподобия
         public LogLikelihoodFunction LogLikelihood => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -49,7 +53,7 @@
             }
             return residuals;
         };
-
+        // Градиент логарифма правдоподобия
         public LogLikelihoodGradient? Gradient => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -71,7 +75,7 @@
             }
             return -2 * residuals;
         };
-
+        // Гессиан логарифма правдоподобия
         public LogLikelihoodGessian? Gessian => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -92,11 +96,11 @@
             return -2 * residuals;
         };
     }
-
+    // Экспоненциальное распределение
     public class ExponentialMMPDistribution : IMMPFunction
     {
         public string Name => "Exponential";
-
+        // В функции правдоподобия добавляется штраф за отрицательные остатки
         public LogLikelihoodFunction LogLikelihood => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -115,7 +119,7 @@
             }
             return residuals / @paramsDist[1] + penaity;
         };
-
+        // Градиент не учитывает штраф, только основную часть
         public LogLikelihoodGradient? Gradient => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -133,14 +137,14 @@
             }
             return 1 / @paramsDist[1] * residuals;
         };
-
+        // Гессиан равен нулю по этому не используется
         public LogLikelihoodGessian? Gessian => null;
     }
-
+    // Лапласовское распределение
     public class LaplaceMMPDistribution : IMMPFunction
     {
         public string Name => "Laplace";
-
+        // Функция правдоподобия пропорциональна сумме абсолютных отклонений
         public LogLikelihoodFunction LogLikelihood => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -157,7 +161,7 @@
 
             return residuals;
         };
-
+        // Градиент основывается на знаке отклонений
         public LogLikelihoodGradient? Gradient => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -176,14 +180,14 @@
 
             return paramsDist[1] * residuals;
         };
-
+        // Гессиан равен нулю по этому не используется
         public LogLikelihoodGessian? Gessian => null;
     }
-
+    // Гамма-распределение остатков
     public class GammaMMPDistribution : IMMPFunction
     {
         public string Name => "Gamma";
-
+        // Функция логарифма правдоподобия, с учётом параметров формы и масштаба
         public LogLikelihoodFunction LogLikelihood => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -204,7 +208,7 @@
 
             return residuals + penaity;
         };
-
+        // Градиент учитывает логарифмическую и дробную часть выражения
         public LogLikelihoodGradient? Gradient => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -224,7 +228,7 @@
 
             return -residuals;
         };
-
+        // Гессиан логарифма правдоподобия по параметрам регрессии
         public LogLikelihoodGessian? Gessian => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -245,11 +249,11 @@
             return (paramsDist[2] - 1) * residuals;
         };
     }
-
+    // Равномерное распределение. Используется логарифм разницы максимального и минимального остатка
     public class UniformMMPDistribution : IMMPFunction
     {
         public string Name => "Uniform";
-
+        // Функция логарифма правдоподобия
         public LogLikelihoodFunction LogLikelihood => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -272,15 +276,16 @@
             }
             return double.Log(maxEps - minEps);
         };
-
+        //Не существует
         public LogLikelihoodGradient? Gradient => null;
-
+        //Не существует
         public LogLikelihoodGessian? Gessian => null;
     }
+    // Нормальное распределение ошибок
     public class NormalMMPDistribution : IMMPFunction
     {
         public string Name => "Normal";
-
+        // Классическая функция логарифма правдоподобия для нормального распределения
         public LogLikelihoodFunction LogLikelihood => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -299,7 +304,7 @@
 
             return residuals / (2 * double.Pow(paramsDist[1], 2));
         };
-
+        // Градиент логарифма правдоподобия по параметрам регрессии
         public LogLikelihoodGradient? Gradient => (model, theta, @params) =>
         {
             var paramsDist = @params[0];
@@ -320,7 +325,7 @@
 
             return residuals / double.Pow(paramsDist[1], 2);
         };
-
+        // Гессиан — матрица X^T X, делённая на дисперсию
         public LogLikelihoodGessian? Gessian => (model, theta, @params) =>
         {
             var paramsDist = @params[0];

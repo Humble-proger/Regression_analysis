@@ -9,6 +9,7 @@ namespace RegressionAnalysisLibrary
         public DistributionFactory(int? seed = null)
         {
             _distributions = [];
+            // Загружаем все генераторы, помеченные атрибутом DistributionNameAttribute
             LoadDistributions(seed);
         }
 
@@ -26,6 +27,7 @@ namespace RegressionAnalysisLibrary
 
                 try
                 {
+                    // Создаём экземпляр генератора и регистрируем его по enum-типу
                     var instance = Activator.CreateInstance(type, seed) as IRandomDistribution;
 #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                     _distributions[attr.Type] = instance;
@@ -53,6 +55,7 @@ namespace RegressionAnalysisLibrary
         private static string GetDistributionName(Type distributionType) => distributionType.GetCustomAttribute<DistributionNameAttribute>()?.Name
                    ?? distributionType.Name;
     }
+    // Типы поддерживаемых распределений
     public enum TypeDisribution
     {
         Uniform,
@@ -62,14 +65,14 @@ namespace RegressionAnalysisLibrary
         Cauchy,
         Gamma
     }
-
+    // Атрибут для регистрации распределения по имени и типу
     [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
     public class DistributionNameAttribute(string name, TypeDisribution type) : Attribute
     {
         public string Name { get; } = name;
         public TypeDisribution Type { get; } = type;
     }
-
+    // Общий интерфейс для всех генераторов случайных величин
     public interface IRandomDistribution
     {
         public string Name { get; }
@@ -78,13 +81,13 @@ namespace RegressionAnalysisLibrary
         public string[] NameParameters { get; }
         public (double?, double?)[]? BoundsParameters { get; }
         Vectors DefaultParametrs { get; }
-        public double Generate();
-        public double? Generate(Vectors paramsDist);
-        public Vectors? Generate((int, int) shape, Vectors paramsDist);
-        public Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand);
-        public bool CheckParamsDist(Vectors paramsDist);
+        public double Generate(); // Без параметров
+        public double? Generate(Vectors paramsDist); // С параметрами
+        public Vectors? Generate((int, int) shape, Vectors paramsDist); // Матрица значений
+        public Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand); // Матрица с кастомным генератором
+        public bool CheckParamsDist(Vectors paramsDist); // Проверка передаваемых параметров
     }
-
+    // Равномерное распределение
     [DistributionName("Равномерное распределение", TypeDisribution.Uniform)]
     public class UniformDistribution(int? seed = null) : IRandomDistribution
     {
@@ -99,8 +102,9 @@ namespace RegressionAnalysisLibrary
         {
             return paramsDist.Size == 2 && paramsDist[0] < paramsDist[1];
         }
+        // Проверка корректности параметров (a < b)
         public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
-
+        // Генерация случайного значения в интервале [a, b]
         private static double Uniform(double a, double b, in Random rand) => a + rand.NextDouble() * (b - a);
         public static double Generate(in Random rand) => rand.NextDouble();
         public static double? Generate(Vectors paramsDist, in Random rand) => CheckParams(paramsDist) ? Uniform(paramsDist[0], paramsDist[1], rand) : null;
@@ -143,8 +147,10 @@ namespace RegressionAnalysisLibrary
 
         public string Name => "Exponential";
         public Random Generator { get; set; } = seed is null ? new Random() : new Random((int) seed);
+        // Генерация случайной экспоненциальной величины
         private static double Exponential(double loc, double scale, double u) => -Math.Log(1 - u) * scale + loc;
         private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        // Проверка корректности параметров (beta > 0)
         public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Exponential(0, 1, Generator.NextDouble());
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Exponential(paramsDist[0], paramsDist[1], Generator.NextDouble()) : null;
@@ -186,11 +192,13 @@ namespace RegressionAnalysisLibrary
         public string Name => "Laplace";
 
         public Random Generator { get; set; } = seed is null ? new Random() : new Random((int) seed);
+        // Генерация случайной величины, подчиняющиеся закону Лапласа
         private static double Laplace(double loc, double scale, in Random rand)
         {
             return loc - scale * double.Sign(-1 + rand.NextDouble() * 2) * double.Log(1 - rand.NextDouble());
         }
         private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        // Проверка корректности параметров (beta > 0)
         public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Laplace(0, 1, Generator);
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Laplace(paramsDist[0], paramsDist[1], Generator) : null;
@@ -232,8 +240,10 @@ namespace RegressionAnalysisLibrary
         public string Name => "Cauchy";
 
         public Random Generator { get; set; } = seed is null ? new Random() : new Random((int) seed);
+        // Генерация случайной величины, подчиняющиеся закону Коши
         private static double Cauchy(double loc, double scale, double u) => loc + scale * Math.Tan(double.Pi * (-1.5 + u * 2));
         private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 && paramsDist[1] > 0;
+        // Проверка корректности параметров (gamma > 0)
         public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Cauchy(0, 1, Generator.NextDouble());
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Cauchy(paramsDist[0], paramsDist[1], Generator.NextDouble()) : null;
@@ -266,7 +276,7 @@ namespace RegressionAnalysisLibrary
 
         public (double?, double?)[]? BoundsParameters => [(null, null), (0, null)];
     }
-
+    // Нормальное распределение с использованием метода Бокса-Мюллера
     [DistributionName("Нормальное распределение", TypeDisribution.Normal)]
     public class NormalDistribution(int? seed = null) : IRandomDistribution
     {
@@ -277,6 +287,7 @@ namespace RegressionAnalysisLibrary
 
         public Random Generator { get; set; } = seed is null ? new Random() : new Random((int) seed);
         private static double Uniform(double a, double b, in Random rand) => a + (b - a) * rand.NextDouble();
+        // Генерация одного значения методом Бокса-Мюллера
         private static double Normal(double loc, double scale, in Random rand)
         {
             double e1 = Uniform(-1, 1, rand), e2 = Uniform(-1, 1, rand);
@@ -288,10 +299,13 @@ namespace RegressionAnalysisLibrary
             }
             return e1 * Math.Sqrt(-2 * Math.Log(s) / s) * scale + loc;
         }
+
         private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 2 & paramsDist[1] > 0;
+        // Проверка корректности параметров (sigma > 0)
         public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => Normal(0, 1, Generator);
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Normal(paramsDist[0], paramsDist[1], Generator) : null;
+        // При генерации матрицы нормальных значений используем парную генерацию для ускорения
         public Vectors? Generate((int, int) shape, Vectors paramsDist)
         {
             if (!CheckParamsDist(paramsDist)) return null;
@@ -334,6 +348,7 @@ namespace RegressionAnalysisLibrary
 
         public static double Generate(in Random rand) => Normal(0, 1, rand);
         public static double? Generate(Vectors paramsDist, in Random rand) => CheckParams(paramsDist) ? Normal(paramsDist[0], paramsDist[1], rand) : null;
+        // При генерации матрицы нормальных значений используем парную генерацию для ускорения
         public Vectors? Generate((int, int) shape, Vectors paramsDist, in Random rand)
         {
             if (!CheckParams(paramsDist)) return null;
@@ -399,6 +414,7 @@ namespace RegressionAnalysisLibrary
         private static double Exponential(in Random rand) => ExponentialDistribution.Generate(rand);
         private static double Normal(in Random rand) => NormalDistribution.Generate(rand);
 
+        //GA1 - сумма стандартных экспоненциальных величин
         private static double GA1(in Random rand, int k = 1)
         {
             var res = 0.0;
@@ -406,6 +422,7 @@ namespace RegressionAnalysisLibrary
                 res += Exponential(rand);
             return res;
         }
+        //GA2 - GA1 + половина квадрана нормальной величины
         private static double GA2(in Random rand, double k = 0.5)
         {
             var res = Normal(rand);
@@ -417,7 +434,7 @@ namespace RegressionAnalysisLibrary
             return res;
         }
 
-        //Devroye L. Non-Uniform Random Variate Generation.
+        //Ahrens and Dieter, 1974
         private static double GS(in Random rand, double k)
         {
             double res, u, w;
@@ -442,7 +459,7 @@ namespace RegressionAnalysisLibrary
             throw new Exception("Failed to calculate GS");
         }
 
-        //George Marsaglia, Wai Wan Tsang. A Simple Method for Generating Gamma Variables
+        //Marsaglia and Tsang’s Method 
         private static double MAT(in Random rand, double k)
         {
             var d = k - 1.0 / 3;
@@ -464,7 +481,7 @@ namespace RegressionAnalysisLibrary
             } while (++iter <= 1e9);
             throw new Exception("Gamma distribution: sampling failed");
         }
-
+        // Используются методы: GA1 (сумма экспоненциальных), GS, MAT и др.
         private static double Gamma(double loc, double scale, double k, in Random rand)
         {
             var result = double.IsInteger(k) && k < 5
@@ -474,6 +491,7 @@ namespace RegressionAnalysisLibrary
         }
 
         private static bool CheckParams(Vectors paramsDist) => paramsDist.Size == 3 && paramsDist[1] > 0 && paramsDist[2] > 0;
+        // Проверка корректности параметров (theta > 0 и k > 0)
         public bool CheckParamsDist(Vectors paramsDist) => CheckParams(paramsDist);
         public double Generate() => GA1(Generator);
         public double? Generate(Vectors paramsDist) => CheckParamsDist(paramsDist) ? Gamma(paramsDist[0], paramsDist[1], paramsDist[2], Generator) : null;
@@ -508,6 +526,7 @@ namespace RegressionAnalysisLibrary
 
     public static class LinespaceRandom
     {
+        // Перемешивает массив значений (Fisher–Yates shuffle)
         public static T[] Shuffle<T>(T[] list, in Random rand)
         {
             var n = list.Length;
@@ -519,7 +538,7 @@ namespace RegressionAnalysisLibrary
             }
             return list;
         }
-
+        // Генерация таблицы с равномерным покрытием интервалов (размещение наблюдений в линиях)
         public static Vectors Generate((int, int) shape, (double, double)[] intervals, in Random rand)
         {
             if (intervals.Length == 1)

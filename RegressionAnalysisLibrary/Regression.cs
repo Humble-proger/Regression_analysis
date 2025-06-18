@@ -10,7 +10,7 @@ namespace RegressionAnalysisLibrary
         public RegressionFactory()
         {
             _regressions = [];
-            LoadRegression();
+            LoadRegression(); // Загружаем модели, помеченные атрибутом RegressionAttribute
         }
 
         private void LoadRegression()
@@ -54,18 +54,25 @@ namespace RegressionAnalysisLibrary
 
     public interface IModel
     {
-        public bool FreeMember { get; set; }
+        // Свободный член (константа) в модели
+        public bool FreeMember { get; set; } 
+        // Количество факторов и регрессоров
         public int CountFacts { get; set; }
         public int CountRegressor { get; set; }
+        // Истинные параметры модели
         public Vectors TrueTheta { get; set; }
+        // Дополнительные регрессоры (например, произведения факторов)
         public List<IAdditionalRegressor> AdditionalFacts { get; set; }
         public List<int> NotActiveFacts { get; set; }
-
+        // Получение строки X из вектора x
         public Vectors VectorFunc(Vectors x);
+        // Истинное значение отклика y для заданного x
         public double True_value(Vectors x);
+        // Формирование всей матрицы X по входной выборке x
         public Vectors CreateMatrixX(Vectors x);
-
+        // Обновление модели
         public void Update(int count_facts, IEnumerable<IAdditionalRegressor> additional_facts, IEnumerable<int> nonActiveFacts, Vectors truetheta, bool free_member = false);
+        // Генерация новых дополнительных регрессоров на основе комбинаций
         public List<IAdditionalRegressor> GenerateAdditionalRegressors(int[] arr, int limit);
     }
 
@@ -78,6 +85,7 @@ namespace RegressionAnalysisLibrary
 
     public interface IAdditionalRegressor
     {
+        
         public double Calc(Vectors valuesX);
         public double Compare();
     }
@@ -92,7 +100,7 @@ namespace RegressionAnalysisLibrary
             ListRelatedFacts = new List<int>(list);
             ListRelatedFacts = [.. ListRelatedFacts.Order()];
         }
-
+        // Вычисление значения дополнительного признака как произведения указанных факторов
         public double Calc(Vectors valuesX)
         {
             var res = 1.0;
@@ -148,7 +156,7 @@ namespace RegressionAnalysisLibrary
         {
             CountFacts = count_facts;
             FreeMember = free_member;
-            // Фильтр для связанных фактов
+            // Инициализация и валидация параметров
 
             AdditionalFacts = new List<IAdditionalRegressor>(related_facts);
             AdditionalFacts = [.. AdditionalFacts.OrderBy(x => x.Compare())];
@@ -201,6 +209,7 @@ namespace RegressionAnalysisLibrary
                 throw new Exception("Incorrect input of true theta values.");
             TrueTheta = truetheta;
         }
+        // Преобразует входной x в строку матрицы X для оценки
         public Vectors VectorFunc(Vectors x)
         {
             if (x.Shape.Item2 == 1)
@@ -219,6 +228,7 @@ namespace RegressionAnalysisLibrary
                 result[index] = AdditionalFacts[i].Calc(x);
             return new Vectors(result);
         }
+        // Истинное значение отклика для данного вектора факторов
         public double True_value(Vectors x)
         {
             if (x.Shape.Item2 == 1)
@@ -237,6 +247,7 @@ namespace RegressionAnalysisLibrary
                 result += AdditionalFacts[i].Calc(x) * TrueTheta[0, index];
             return result;
         }
+        // Создаёт матрицу X по выборке наблюдений x
         public Vectors CreateMatrixX(Vectors x)
         {
             if (x.Shape.Item2 != CountFacts)
@@ -246,7 +257,7 @@ namespace RegressionAnalysisLibrary
                 result.SetRow(VectorFunc(Vectors.GetRow(x, i)), i);
             return result;
         }
-
+        // Генерация дополнительных регрессоров (например, всех возможных произведений факторов до заданного предела)
         public List<IAdditionalRegressor> GenerateAdditionalRegressors(int[] arr, int limit)
         {
             if (arr.Length <= 1)
@@ -269,7 +280,7 @@ namespace RegressionAnalysisLibrary
             // Возвращаем только первые `limit` элементов
             return result.Take(limit).ToList();
         }
-
+        // Вспомогательная функция для генерации всех комбинаций заданной длины
         static List<RelatedFact> GetCombinations(int[] arr, int k)
         {
             var result = new List<RelatedFact>();

@@ -9,7 +9,7 @@ namespace RegressionAnalysisLibrary
         public EvolutionFactory()
         {
             _evolutions = [];
-            LoadEvolutions();
+            LoadEvolutions(); // Загружаем все реализованные оцениватели параметров, помеченные атрибутом EvolutionAttribute
         }
 
         private void LoadEvolutions()
@@ -26,6 +26,7 @@ namespace RegressionAnalysisLibrary
 
                 try
                 {
+                    // Создаем экземпляр оценивателя и добавляем в словарь
                     var instance = Activator.CreateInstance(type) as IParameterEstimator;
 #pragma warning disable CS8601 // Возможно, назначение-ссылка, допускающее значение NULL.
                     _evolutions[attr.Name] = instance;
@@ -52,13 +53,14 @@ namespace RegressionAnalysisLibrary
     public interface IParameterEstimator
     {
         string Name { get; }
-        public abstract Vectors EstimateParameters(IModel model, Vectors[] otherParameters);
+        public abstract Vectors EstimateParameters(IModel model, Vectors[] otherParameters); // Метод оценки параметров модели
     }
 
 
     [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
     public class EvolutionAttribute(string name) : Attribute
     {
+        // Имя, под которым регистрируется метод оценки
         public string Name { get; } = name;
     }
 
@@ -72,6 +74,7 @@ namespace RegressionAnalysisLibrary
             var x = otherParameters[1];
             var y = otherParameters[2];
 
+            // Проверки корректности входных данных
             if (x.Shape.Item2 != model.CountFacts)
                 throw new ArgumentException("Вектор 'x' не соответствует количеству факторов в моделе 'model'");
 
@@ -83,6 +86,7 @@ namespace RegressionAnalysisLibrary
             Vectors estimatedTheta;
             try
             {
+                // Применение формулы МНК: θ = (X^T X)^(-1) X^T y
                 var tMatrixX = matrixX.T();
                 estimatedTheta = (Vectors.Inv(tMatrixX & matrixX) & tMatrixX & y.T()).T();
             }
@@ -105,6 +109,7 @@ namespace RegressionAnalysisLibrary
         {
             if (Config.Functions.Name == "Normal")
             {
+                // Если нормальное распределение — используем формулу МНК
                 var x = otherParameters[1];
                 var y = otherParameters[2];
 
@@ -130,6 +135,7 @@ namespace RegressionAnalysisLibrary
             }
             else if (Config.MNKEstuminate)
             {
+                // Инициализация параметров на основе МНК или смещенных данных
                 Vectors initParams;
                 try
                 {
@@ -144,6 +150,7 @@ namespace RegressionAnalysisLibrary
                 {
                     throw new Exception("Не правильные данные");
                 }
+                // Выбор стратегии оптимизации (одиночный или многократный запуск)
                 return Config.IsMultiIterationOptimisation
                     ? Config.Oprimizator.OptimisateRandomInit(
                         Config.Functions.LogLikelihood,
@@ -166,6 +173,7 @@ namespace RegressionAnalysisLibrary
                         ).MinPoint;
             }
             else
+                // Обычная оптимизация без начального приближения
                 return Config.IsMultiIterationOptimisation
                     ? Config.Oprimizator.OptimisateRandomInit(
                         Config.Functions.LogLikelihood,
@@ -190,6 +198,9 @@ namespace RegressionAnalysisLibrary
 
     public static class MMPConfigLoader
     {
+        // Набор фабричных методов для различных распределений, каждый из которых возвращает
+        // объект конфигурации MMPConfiguration с соответствующей функцией правдоподобия,
+        // оптимизатором и другими параметрами
         public static MMPConfiguration Normal
             (
             bool ismultiiteration = true,
@@ -328,6 +339,7 @@ namespace RegressionAnalysisLibrary
             int? seed = null
             )
         {
+            // Возвращает конфигурацию в зависимости от выбранного типа распределения
             switch (typeDisribution)
             {
                 case TypeDisribution.Normal:
